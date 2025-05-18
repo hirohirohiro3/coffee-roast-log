@@ -271,7 +271,7 @@
             const greenBeanWeightInput = document.getElementById('greenBeanWeight');
             const roastedBeanWeightInput = document.getElementById('roastedBeanWeight');
             const weightLossDisplay = document.getElementById('weightLoss');
-            const chargingTemperatureInput = document.getElementById('chargingTemperature'); // New
+            const chargingTemperatureInput = document.getElementById('chargingTemperature'); 
 
             // Timer Elements
             const timerDisplay = document.getElementById('timerDisplay');
@@ -295,7 +295,7 @@
 
             const confirmModal = document.getElementById('confirmModal');
             const closeModalButton = document.getElementById('closeModalButton');
-            const modalMessageModal = document.getElementById('modalMessage'); // Renamed to avoid conflict
+            const modalMessageModal = document.getElementById('modalMessage'); 
             const cancelButton = document.getElementById('cancelButton');
             const confirmActionButton = document.getElementById('confirmActionButton');
             let currentAction = null;
@@ -304,7 +304,7 @@
             const graphModal = document.getElementById('graphModal');
             const closeGraphModalButton = document.getElementById('closeGraphModalButton');
             const graphModalTitle = document.getElementById('graphModalTitle');
-            const graphMessage = document.getElementById('graphMessage'); // For messages in graph modal
+            const graphMessage = document.getElementById('graphMessage'); 
             let roastProfileChart = null; 
 
             currentYearSpan.textContent = new Date().getFullYear();
@@ -316,6 +316,13 @@
             // --- Toast Notification Function ---
             function showToast(message, type = 'info', duration = 3000) {
                 const toastContainer = document.getElementById('toast-container');
+                if (!toastContainer) { // Create container if it doesn't exist (robustness)
+                    const container = document.createElement('div');
+                    container.id = 'toast-container';
+                    container.className = 'fixed bottom-5 right-5 z-[1001] space-y-2';
+                    document.body.appendChild(container);
+                }
+
                 const toast = document.createElement('div');
                 toast.className = `p-3 rounded-md shadow-lg text-sm font-medium max-w-xs break-words ${
                     type === 'success' ? 'bg-green-500 text-white' : 
@@ -323,7 +330,7 @@
                     'bg-gray-700 text-white'
                 }`;
                 toast.textContent = message;
-                toastContainer.appendChild(toast);
+                document.getElementById('toast-container').appendChild(toast); // Append to the correct container
 
                 setTimeout(() => {
                     toast.classList.add('opacity-0', 'transition-opacity', 'duration-500');
@@ -334,7 +341,7 @@
             }
 
             // --- Time Conversion Utilities ---
-            function timeToSeconds(timeStr) { // MM:SS or M:SS
+            function timeToSeconds(timeStr) { 
                 if (!timeStr || typeof timeStr !== 'string') return 0;
                 const parts = timeStr.split(':');
                 if (parts.length !== 2) return 0;
@@ -363,7 +370,6 @@
                     timerPaused = false;
                 } else { 
                     secondsElapsed = 0;
-                    // Clear previous live logs when starting fresh
                     chamberTempLogInput.value = '';
                     beanTempLogInput.value = '';
                 }
@@ -471,7 +477,6 @@
                 localStorage.setItem('roasts_v2', JSON.stringify(roasts));
             }
 
-            // --- DTR Calculation ---
             function calculateDTR(firstCrackTimeStr, totalRoastTimeStr) {
                 const firstCrackSeconds = timeToSeconds(firstCrackTimeStr);
                 const totalRoastSeconds = timeToSeconds(totalRoastTimeStr);
@@ -479,12 +484,11 @@
                 if (firstCrackSeconds > 0 && totalRoastSeconds > 0 && firstCrackSeconds < totalRoastSeconds) {
                     const developmentTimeSeconds = totalRoastSeconds - firstCrackSeconds;
                     const dtrPercentage = (developmentTimeSeconds / totalRoastSeconds) * 100;
-                    return dtrPercentage.toFixed(1); // Return as string for consistency, e.g., "20.5"
+                    return dtrPercentage.toFixed(1); 
                 }
-                return null; // Or '-' or ''
+                return null; 
             }
 
-            // --- ROR Calculation ---
             function calculateBeanROR(beanTempLogStr) {
                 if (!beanTempLogStr) return null;
                 const beanTemps = beanTempLogStr.split(',').map(Number).filter(n => !isNaN(n));
@@ -494,7 +498,7 @@
                 for (let i = 1; i < beanTemps.length; i++) {
                     rorValues.push((beanTemps[i] - beanTemps[i-1]).toFixed(1));
                 }
-                return rorValues.join(','); // Return as comma-separated string
+                return rorValues.join(','); 
             }
 
 
@@ -550,14 +554,13 @@
                     if (roast.weatherHumidity) html += `<p class="mb-1"><strong>気候(湿):</strong> ${roast.weatherHumidity} %</p>`;
                     html += `</div>`;
 
-                    // Temperature & ROR Logs
                     if (roast.chamberTempLog || roast.beanTempLog) {
                         html += `<div class="mt-3 pt-3 border-t border-gray-200">`;
                         html += `<h4 class="text-sm font-semibold text-gray-600 mb-1">温度記録 (庫内 / 豆) & 豆ROR (°C/分):</h4>`;
                         const chamberTemps = roast.chamberTempLog ? roast.chamberTempLog.split(',') : [];
                         const beanTemps = roast.beanTempLog ? roast.beanTempLog.split(',') : [];
                         const rorLogs = roast.rorLog ? roast.rorLog.split(',') : [];
-                        const maxLen = Math.max(chamberTemps.length, beanTemps.length, rorLogs.length +1); // ROR has one less entry
+                        const maxLen = Math.max(chamberTemps.length, beanTemps.length, rorLogs.length +1); 
 
                         if (maxLen > 0) {
                             let tempListHtml = '<div class="text-xs text-gray-600 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-2 gap-y-0.5">';
@@ -565,7 +568,7 @@
                                 const minute = i + 1;
                                 const cTemp = chamberTemps[i] || '-';
                                 const bTemp = beanTemps[i] || '-';
-                                const rorVal = i > 0 ? (rorLogs[i-1] || '-') : '-'; // ROR starts from the 2nd minute (index 1 of temps)
+                                const rorVal = i > 0 ? (rorLogs[i-1] || '-') : '-'; 
                                 tempListHtml += `<span>${minute}分: ${cTemp}/${bTemp} (ROR ${rorVal})</span>`;
                             }
                             tempListHtml += '</div>';
@@ -612,17 +615,17 @@
                     beanName: formData.get('beanName'),
                     roastDate: formData.get('roastDate'),
                     roastLevel: formData.get('roastLevel'),
-                    chargingTemperature: formData.get('chargingTemperature') || '', // New
+                    chargingTemperature: formData.get('chargingTemperature') || '', 
                     origin: formData.get('origin') || '',
                     greenBeanWeight: formData.get('greenBeanWeight') || '',
                     roastedBeanWeight: formData.get('roastedBeanWeight') || '',
                     firstCrackTime: firstCrackTime,
                     secondCrackTime: formData.get('secondCrackTime') || '',
                     totalRoastTime: totalRoastTime,
-                    dtr: calculateDTR(firstCrackTime, totalRoastTime), // New
+                    dtr: calculateDTR(firstCrackTime, totalRoastTime), 
                     chamberTempLog: formData.get('chamberTempLog') || '', 
                     beanTempLog: beanTempLog,
-                    rorLog: calculateBeanROR(beanTempLog), // New
+                    rorLog: calculateBeanROR(beanTempLog), 
                     weatherTemp: formData.get('roastWeatherTemp') || '', 
                     weatherHumidity: formData.get('roastWeatherHumidity') || '',
                     notes: formData.get('notes') || ''
@@ -662,7 +665,7 @@
             });
             
             function openConfirmModal(message, action, itemId = null) {
-                messageModalModal.textContent = message; // Use renamed variable
+                modalMessageModal.textContent = message; 
                 currentAction = action;
                 currentItemId = itemId;
                 confirmModal.style.display = "block";
@@ -724,10 +727,7 @@
                     graphMessage.textContent = "表示する温度・RORデータがありません。";
                     return;
                 }
-                // Labels for temperature (0 min, 1 min, 2 min...)
                 const tempLabels = Array.from({length: maxLen}, (_, i) => `${i}分`);
-                // Labels for ROR (ROR for 0-1min, 1-2min...). ROR is plotted at the END of the interval.
-                // So, ROR value at index 0 corresponds to change between temp[0] and temp[1], plotted at '1分'
                 const rorLabels = Array.from({length: rorValues.length}, (_, i) => `${i+1}分`);
 
 
@@ -747,13 +747,12 @@
                     });
                 }
                 if (rorValues.length > 0) {
-                     // ROR data needs to be aligned with tempLabels. The first ROR value is for the interval ending at 1 minute.
-                    const alignedRorData = [null, ...rorValues]; // Add null at the beginning to align with temp points if ROR is plotted against temp points
+                    const alignedRorData = [null, ...rorValues]; 
                     datasets.push({
                         label: '豆ROR (°C/分)', data: alignedRorData, yAxisID: 'yROR',
                         borderColor: 'rgba(75, 192, 192, 1)', backgroundColor: 'rgba(75, 192, 192, 0.2)',
                         tension: 0.1, fill: false, type: 'line',
-                        borderDash: [5, 5] // Dashed line for ROR
+                        borderDash: [5, 5] 
                     });
                 }
                 
@@ -761,13 +760,13 @@
                 if (roastProfileChart) { roastProfileChart.destroy(); }
 
                 roastProfileChart = new Chart(ctx, {
-                    type: 'line', // Default type, ROR can override
+                    type: 'line', 
                     data: {
-                        labels: tempLabels, // Use temperature labels as primary X-axis
+                        labels: tempLabels, 
                         datasets: datasets
                     },
                     options: {
-                        responsive: true, maintainAspectRatio: false, // Allow chart to shrink if container is small
+                        responsive: true, maintainAspectRatio: false, 
                         interaction: { mode: 'index', intersect: false },
                         scales: {
                             x: { title: { display: true, text: '焙煎時間 (経過分)' } },
@@ -777,11 +776,11 @@
                                 beginAtZero: false,
                                 grid: { drawOnChartArea: true } 
                             },
-                            yROR: { // Secondary axis for ROR
+                            yROR: { 
                                 type: 'linear', display: rorValues.length > 0, position: 'right',
                                 title: { display: true, text: 'ROR (°C/分)' },
-                                beginAtZero: false, // ROR can be negative
-                                grid: { drawOnChartArea: false } // Only draw grid for primary axis
+                                beginAtZero: false, 
+                                grid: { drawOnChartArea: false } 
                             }
                         },
                         plugins: { 
@@ -835,12 +834,12 @@
 
                 const csvRows = roasts.map(r => [
                     escapeCSV(r.id), escapeCSV(r.beanName), escapeCSV(r.roastDate), escapeCSV(r.roastLevel), escapeCSV(r.origin),
-                    escapeCSV(r.chargingTemperature), // New
+                    escapeCSV(r.chargingTemperature), 
                     escapeCSV(r.greenBeanWeight), escapeCSV(r.roastedBeanWeight), escapeCSV(r.weightLossPercentage),
                     escapeCSV(r.firstCrackTime), escapeCSV(r.secondCrackTime), escapeCSV(r.totalRoastTime),
-                    escapeCSV(r.dtr ? r.dtr + '%' : ''), // New, add %
+                    escapeCSV(r.dtr ? r.dtr + '%' : ''), 
                     escapeCSV(r.chamberTempLog), escapeCSV(r.beanTempLog), 
-                    escapeCSV(r.rorLog), // New
+                    escapeCSV(r.rorLog), 
                     escapeCSV(r.weatherTemp), escapeCSV(r.weatherHumidity), escapeCSV(r.notes)
                 ].join(','));
 
@@ -860,6 +859,7 @@
                 showToast("全データをCSV形式でエクスポートしました。", "success");
             });
 
+            // --- Weather Fetching Function (Corrected) ---
             fetchWeatherButton.addEventListener('click', async () => {
                 if (!navigator.geolocation) {
                     weatherMessage.textContent = "お使いのブラウザは位置情報取得に対応していません。";
@@ -878,25 +878,47 @@
                     const { latitude, longitude } = position.coords;
                     weatherMessage.textContent = `位置情報取得成功 (${latitude.toFixed(2)}, ${longitude.toFixed(2)})。天候情報取得中...`;
                     
-                    const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&current=relative_humidity_2m&timezone=Asia/Tokyo`; // Corrected API for humidity
+                    // Corrected API URL: Use 'current' parameter for specific fields, 'current_weather' is deprecated.
+                    const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude.toFixed(4)}&longitude=${longitude.toFixed(4)}&current=temperature_2m,relative_humidity_2m&timezone=Asia%2FTokyo`;
+                    
                     const response = await fetch(apiUrl);
 
                     if (!response.ok) {
-                        throw new Error(`天候APIエラー: ${response.status}`);
+                        throw new Error(`天候APIエラー: ${response.status} ${response.statusText}`);
                     }
                     const data = await response.json();
 
-                    if (data.current_weather && data.current) { // Check both current_weather and current
-                        const temp = data.current_weather.temperature;
-                        const humidity = data.current.relative_humidity_2m; 
+                    if (data.current && data.current.time && data.current.temperature_2m !== undefined && data.current.relative_humidity_2m !== undefined) {
+                        const temp = data.current.temperature_2m;
+                        const humidity = data.current.relative_humidity_2m;
+                        const time = data.current.time;
                         
-                        roastWeatherTempInput.value = temp !== undefined ? temp : '';
-                        roastWeatherHumidityInput.value = humidity !== undefined ? humidity : '';
-                        weatherMessage.textContent = `現在の気候: ${temp}°C, ${humidity}% (取得日時: ${new Date(data.current_weather.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+                        roastWeatherTempInput.value = temp.toFixed(1); // Display with one decimal place
+                        roastWeatherHumidityInput.value = Math.round(humidity); // Display as whole number
+                        weatherMessage.textContent = `現在の気候: ${temp.toFixed(1)}°C, ${Math.round(humidity)}% (取得日時: ${new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
                         showToast("気候情報を取得しました。", "success");
                     } else {
-                        console.error("Weather API response structure:", data);
-                        throw new Error("天候データ形式が不正か、必要なデータが含まれていません。");
+                        console.error("Weather API response structure unexpected or missing data:", data);
+                        throw new Error("天候データ形式が不正か、必要なデータ(気温/湿度/時間)が含まれていません。");
+                    }
+
+                } catch (error) {
+                    console.error("気候情報取得エラー:", error);
+                    weatherMessage.textContent = `気候情報取得失敗: ${error.message}`;
+                     showToast(`気候情報取得失敗: ${error.message}`, "error");
+                     roastWeatherTempInput.value = ''; 
+                     roastWeatherHumidityInput.value = '';
+                } finally {
+                    fetchWeatherButton.disabled = false;
+                }
+            });
+
+            displayRoasts();
+        });
+    </script>
+</body>
+</html>
+
                     }
 
                 } catch (error) {
