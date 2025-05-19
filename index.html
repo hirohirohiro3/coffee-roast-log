@@ -8,10 +8,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/2.2.1/chartjs-plugin-annotation.min.js" xintegrity="sha512-qCg8r39Mh6D4fH3fGIOqCBNQ4RjFjP7T5R239S/cRasD6VjWcM6mB2L3P4H/cK2t2Yx0uH10H1h1FhOPlJj8w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f9fafb; /* Tailwind gray-50 */
+            background-color: #f9fafb; 
         }
         .modal {
             display: none; position: fixed; z-index: 1000;
@@ -23,7 +24,7 @@
             border: 1px solid #d1d5db; width: 90%;
             border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .modal-content-profile { max-width: 950px; } /* Profile (Graph + Table) modal */
+        .modal-content-profile { max-width: 950px; } 
 
         .close-button {
             color: #9ca3af; float: right; font-size: 28px; font-weight: bold;
@@ -41,31 +42,22 @@
             border: 1px solid #d1d5db; border-radius: 0.375rem;
             padding: 0.5rem 0.75rem; min-height: 60px; 
         }
-        /* Styles for the data table in the modal */
         .profile-data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            font-size: 0.875rem; /* text-sm */
+            width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.875rem; 
         }
         .profile-data-table th, .profile-data-table td {
-            border: 1px solid #e5e7eb; /* gray-200 */
-            padding: 8px 10px;
-            text-align: right;
+            border: 1px solid #e5e7eb; padding: 8px 10px; text-align: right;
         }
         .profile-data-table th {
-            background-color: #f9fafb; /* gray-50 */
-            font-weight: 600; /* semibold */
-            color: #374151; /* gray-700 */
+            background-color: #f9fafb; font-weight: 600; color: #374151; 
         }
-        .profile-data-table td {
-            color: #4b5563; /* gray-600 */
-        }
-        .profile-data-table tr:nth-child(even) td {
-            background-color: #f9fafb; /* gray-50 for even rows for better readability */
-        }
+        .profile-data-table td { color: #4b5563; }
+        .profile-data-table tr:nth-child(even) td { background-color: #f9fafb; }
         .profile-data-table .time-col { text-align: center; }
-
+        .editing-indicator {
+            border-left: 4px solid #fbbf24; /* amber-400 */
+            padding-left: 1rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -87,7 +79,7 @@
                     <button id="resetTimerButton" class="px-4 py-2 w-24 sm:w-28 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500" disabled>リセット</button>
                 </div>
                 <div class="text-center">
-                     <button id="logTimeButton" class="px-4 py-2 border border-amber-500 rounded-md shadow-sm text-sm font-medium text-amber-600 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-400">現在の時間をハゼ/総時間へ</button>
+                     <button id="logTimeButton" class="px-4 py-2 border border-amber-500 rounded-md shadow-sm text-sm font-medium text-amber-600 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-400">現在の時間をハゼ/総時間等へ</button>
                 </div>
                 <div id="liveTempLoggingSection" class="mt-6 pt-4 border-t border-gray-200 hidden">
                     <h3 class="text-lg font-medium text-gray-800 mb-2 text-center">現在の温度を記録 (タイマー作動中)</h3>
@@ -109,9 +101,9 @@
             </section>
 
             <section id="roastFormSection" class="mb-8 p-6 bg-white rounded-lg shadow-md">
-                <h2 class="text-2xl font-semibold mb-6 text-amber-600">新しい焙煎を記録</h2>
+                <h2 id="formTitle" class="text-2xl font-semibold mb-6 text-amber-600">新しい焙煎を記録</h2>
                 <form id="roastForm" class="space-y-6">
-                    <div>
+                    <input type="hidden" id="editRoastId" name="editRoastId"> <div>
                         <label for="beanName" class="block text-sm font-medium text-gray-700 mb-1">豆の名前 <span class="text-red-500">*</span></label>
                         <input type="text" id="beanName" name="beanName" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: エチオピア イルガチェフェ">
                     </div>
@@ -154,20 +146,37 @@
                         </div>
                     </div>
                     <p id="weightLoss" class="text-sm text-gray-600 -mt-4 md:col-span-2"></p>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                            <label for="firstCrackTime" class="block text-sm font-medium text-gray-700 mb-1">1ハゼ開始 (分:秒)</label>
-                            <input type="text" id="firstCrackTime" name="firstCrackTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 08:30">
+                    
+                    <fieldset class="pt-4 border-t border-gray-200">
+                        <legend class="text-lg font-medium text-gray-900 mb-2">主要な焙煎イベント</legend>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                            <div>
+                                <label for="turningPointTime" class="block text-sm font-medium text-gray-700">TP 時間 (分:秒)</label>
+                                <input type="text" id="turningPointTime" name="turningPointTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 01:30">
+                            </div>
+                            <div>
+                                <label for="turningPointTemp" class="block text-sm font-medium text-gray-700">TP 温度 (°C)</label>
+                                <input type="number" id="turningPointTemp" name="turningPointTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 85.5">
+                            </div>
+                            <div>
+                                <label for="firstCrackTime" class="block text-sm font-medium text-gray-700">1ハゼ開始 (分:秒)</label>
+                                <input type="text" id="firstCrackTime" name="firstCrackTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 08:30">
+                            </div>
+                            <div>
+                                <label for="secondCrackTime" class="block text-sm font-medium text-gray-700">2ハゼ開始 (分:秒)</label>
+                                <input type="text" id="secondCrackTime" name="secondCrackTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 11:15">
+                            </div>
+                             <div>
+                                <label for="totalRoastTime" class="block text-sm font-medium text-gray-700">総焙煎時間 (分:秒) <span class="text-red-500">*</span></label>
+                                <input type="text" id="totalRoastTime" name="totalRoastTime" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 12:45">
+                            </div>
+                            <div>
+                                <label for="endOfRoastTemp" class="block text-sm font-medium text-gray-700">煎り止め温度 (°C)</label>
+                                <input type="number" id="endOfRoastTemp" name="endOfRoastTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 205.0">
+                            </div>
                         </div>
-                        <div>
-                            <label for="secondCrackTime" class="block text-sm font-medium text-gray-700 mb-1">2ハゼ開始 (分:秒)</label>
-                            <input type="text" id="secondCrackTime" name="secondCrackTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 11:15">
-                        </div>
-                        <div>
-                            <label for="totalRoastTime" class="block text-sm font-medium text-gray-700 mb-1">総焙煎時間 (分:秒) <span class="text-red-500">*</span></label>
-                            <input type="text" id="totalRoastTime" name="totalRoastTime" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 12:45">
-                        </div>
-                    </div>
+                    </fieldset>
+
                     <div class="space-y-4 pt-4 border-t border-gray-200">
                          <h3 class="text-lg font-medium text-gray-900">温度記録 (1分ごと)</h3>
                          <div>
@@ -201,8 +210,9 @@
                         <textarea id="notes" name="notes" rows="4" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="香り、味、焙煎中の気づきなど"></textarea>
                     </div>
                     <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                        <button type="button" id="cancelEditButton" class="hidden px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">キャンセル</button>
                         <button type="button" id="clearFormButton" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">クリア</button>
-                        <button type="submit" class="px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">記録を保存</button>
+                        <button type="submit" id="saveRecordButton" class="px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">記録を保存</button>
                     </div>
                 </form>
             </section>
@@ -256,8 +266,7 @@
                             <th>豆ROR(°C/分)</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        </tbody>
+                    <tbody></tbody>
                 </table>
             </div>
              <p id="profileTableMessage" class="text-xs text-gray-500 text-center mt-2"></p>
@@ -270,11 +279,17 @@
     
     <div id="toast-container" class="fixed bottom-5 right-5 z-[2001] space-y-2"></div>
 
-
     <script>
+        // Chart.js Annotation plugin registration (if not globally registered via script tag already, though it should be)
+        // Chart.register(ChartAnnotation); // This might be needed if using modules, but with CDN script, it's usually auto-registered.
+
         document.addEventListener('DOMContentLoaded', () => {
             // DOM Elements
             const roastForm = document.getElementById('roastForm');
+            const formTitle = document.getElementById('formTitle'); // For changing title in edit mode
+            const editRoastIdInput = document.getElementById('editRoastId'); // Hidden input for edit ID
+            const saveRecordButton = document.getElementById('saveRecordButton'); // Submit button
+            const cancelEditButton = document.getElementById('cancelEditButton'); // Cancel edit button
             const roastLog = document.getElementById('roastLog');
             const clearFormButton = document.getElementById('clearFormButton');
             const deleteAllButton = document.getElementById('deleteAllButton');
@@ -284,6 +299,10 @@
             const roastedBeanWeightInput = document.getElementById('roastedBeanWeight');
             const weightLossDisplay = document.getElementById('weightLoss');
             const chargingTemperatureInput = document.getElementById('chargingTemperature');
+            const turningPointTimeInput = document.getElementById('turningPointTime');
+            const turningPointTempInput = document.getElementById('turningPointTemp');
+            const endOfRoastTempInput = document.getElementById('endOfRoastTemp');
+
 
             // Timer Elements
             const timerDisplay = document.getElementById('timerDisplay');
@@ -305,7 +324,6 @@
             const roastWeatherHumidityInput = document.getElementById('roastWeatherHumidity');
             const weatherMessage = document.getElementById('weatherMessage');
 
-            // Confirmation Modal Elements
             const confirmModal = document.getElementById('confirmModal');
             const closeConfirmModalButton = document.getElementById('closeConfirmModalButton');
             const confirmModalMessage = document.getElementById('confirmModalMessage');
@@ -314,16 +332,15 @@
             let currentAction = null;
             let currentItemId = null;
 
-            // Profile Detail Modal Elements (Graph + Table)
-            const profileModal = document.getElementById('profileModal'); // Renamed from graphModal
-            const closeProfileModalButton = document.getElementById('closeProfileModalButton'); // Renamed
-            const profileModalTitle = document.getElementById('profileModalTitle'); // Renamed
-            const profileMessage = document.getElementById('profileMessage'); // Renamed from graphMessage
-            const profileDataTableBody = document.getElementById('profileDataTable').getElementsByTagName('tbody')[0]; // For table data
+            const profileModal = document.getElementById('profileModal'); 
+            const closeProfileModalButton = document.getElementById('closeProfileModalButton'); 
+            const profileModalTitle = document.getElementById('profileModalTitle'); 
+            const profileMessage = document.getElementById('profileMessage'); 
+            const profileDataTableBody = document.getElementById('profileDataTable').getElementsByTagName('tbody')[0]; 
             const profileTableMessage = document.getElementById('profileTableMessage');
-            const copyProfileJsonButton = document.getElementById('copyProfileJsonButton'); // New
+            const copyProfileJsonButton = document.getElementById('copyProfileJsonButton'); 
             let roastProfileChart = null; 
-            let currentProfileDataForCopy = null; // To store data for JSON copy
+            let currentProfileDataForCopy = null; 
 
 
             currentYearSpan.textContent = new Date().getFullYear();
@@ -366,8 +383,17 @@
                 if (isNaN(minutes) || isNaN(seconds)) return 0;
                 return (minutes * 60) + seconds;
             }
+            
+            // Helper to convert seconds to MM:SS string, ensuring valid numbers
+            function secondsToTime(totalSeconds) {
+                if (isNaN(totalSeconds) || totalSeconds < 0) return ''; // Return empty for invalid input
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = Math.floor(totalSeconds % 60); // Use Math.floor for safety
+                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
 
-            function formatTime(totalSeconds) {
+
+            function formatTime(totalSeconds) { // Used by timer display
                 const minutes = Math.floor(totalSeconds / 60);
                 const seconds = totalSeconds % 60;
                 return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -428,7 +454,10 @@
             
             logTimeButton.addEventListener('click', () => {
                 const currentTime = formatTime(secondsElapsed);
-                if (!document.getElementById('firstCrackTime').value) {
+                // Prioritize TP, then 1C, then 2C, then Total
+                if (!turningPointTimeInput.value) {
+                    turningPointTimeInput.value = currentTime;
+                } else if (!document.getElementById('firstCrackTime').value) {
                     document.getElementById('firstCrackTime').value = currentTime;
                 } else if (!document.getElementById('secondCrackTime').value) {
                     document.getElementById('secondCrackTime').value = currentTime;
@@ -437,9 +466,9 @@
                 } else {
                     try {
                         navigator.clipboard.writeText(currentTime);
-                        showToast("ハゼ/総時間入力欄が全て埋まっています。時間をクリップボードにコピーしました。", "info");
+                        showToast("主要時間入力欄が全て埋まっています。時間をクリップボードにコピーしました。", "info");
                     } catch (err) {
-                         showToast("ハゼ/総時間入力欄が全て埋まっています。", "error");
+                         showToast("主要時間入力欄が全て埋まっています。", "error");
                     }
                 }
             });
@@ -516,6 +545,51 @@
                 return rorValues.join(','); 
             }
 
+            // --- Edit Mode Functions ---
+            function enterEditMode(roast) {
+                formTitle.textContent = `「${roast.beanName}」の記録を編集中`;
+                formTitle.classList.add('editing-indicator');
+                editRoastIdInput.value = roast.id;
+
+                // Populate form
+                document.getElementById('beanName').value = roast.beanName;
+                document.getElementById('roastDate').value = roast.roastDate;
+                document.getElementById('roastLevel').value = roast.roastLevel;
+                document.getElementById('chargingTemperature').value = roast.chargingTemperature || '';
+                document.getElementById('origin').value = roast.origin || '';
+                document.getElementById('greenBeanWeight').value = roast.greenBeanWeight || '';
+                document.getElementById('roastedBeanWeight').value = roast.roastedBeanWeight || '';
+                document.getElementById('turningPointTime').value = roast.turningPointTime || '';
+                document.getElementById('turningPointTemp').value = roast.turningPointTemp || '';
+                document.getElementById('firstCrackTime').value = roast.firstCrackTime || '';
+                document.getElementById('secondCrackTime').value = roast.secondCrackTime || '';
+                document.getElementById('totalRoastTime').value = roast.totalRoastTime;
+                document.getElementById('endOfRoastTemp').value = roast.endOfRoastTemp || '';
+                document.getElementById('chamberTempLog').value = roast.chamberTempLog || '';
+                document.getElementById('beanTempLog').value = roast.beanTempLog || '';
+                document.getElementById('roastWeatherTemp').value = roast.weatherTemp || '';
+                document.getElementById('roastWeatherHumidity').value = roast.weatherHumidity || '';
+                document.getElementById('notes').value = roast.notes || '';
+                calculateAndUpdateWeightLoss(); // Recalculate weight loss for display
+
+                saveRecordButton.textContent = '更新を保存';
+                cancelEditButton.classList.remove('hidden');
+                roastFormSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+
+            function exitEditMode() {
+                formTitle.textContent = '新しい焙煎を記録';
+                formTitle.classList.remove('editing-indicator');
+                editRoastIdInput.value = '';
+                roastForm.reset();
+                weightLossDisplay.textContent = '';
+                weatherMessage.textContent = '';
+                saveRecordButton.textContent = '記録を保存';
+                cancelEditButton.classList.add('hidden');
+            }
+
+            cancelEditButton.addEventListener('click', exitEditMode);
+
 
             function displayRoasts() {
                 const roasts = getRoasts();
@@ -543,6 +617,9 @@
                                 <p class="text-sm text-gray-500">${roast.roastDate} / ${roast.roastLevel}</p>
                             </div>
                             <div class="flex space-x-1 sm:space-x-2 mt-2 sm:mt-0 flex-wrap">
+                                <button data-id="${roast.id}" class="edit-roast-button text-green-500 hover:text-green-700 text-sm font-medium flex items-center py-1 px-1.5 rounded hover:bg-green-50" title="この記録を編集">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square mr-1" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"/></svg>編集
+                                </button>
                                 <button data-id="${roast.id}" class="view-profile-button text-blue-500 hover:text-blue-700 text-sm font-medium flex items-center py-1 px-1.5 rounded hover:bg-blue-50" title="焙煎プロファイル詳細を表示">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg>詳細表示
                                 </button>
@@ -555,42 +632,19 @@
                     html += `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 text-sm text-gray-700">`;
                     if (roast.origin) html += `<p class="mb-1"><strong>産地:</strong> ${roast.origin}</p>`;
                     if (roast.chargingTemperature) html += `<p class="mb-1"><strong>投入温度:</strong> ${roast.chargingTemperature} °C</p>`;
+                    if (roast.turningPointTime) html += `<p class="mb-1"><strong>TP:</strong> ${roast.turningPointTime} / ${roast.turningPointTemp || '-'}°C</p>`;
                     if (roast.greenBeanWeight) html += `<p class="mb-1"><strong>生豆:</strong> ${roast.greenBeanWeight} g</p>`;
                     if (roast.roastedBeanWeight) html += `<p class="mb-1"><strong>焙煎後:</strong> ${roast.roastedBeanWeight} g</p>`;
                     if (roast.weightLossPercentage) html += `<p class="mb-1"><strong>減少率:</strong> ${roast.weightLossPercentage}%</p>`;
                     if (roast.firstCrackTime) html += `<p class="mb-1"><strong>1ハゼ:</strong> ${roast.firstCrackTime}</p>`;
                     if (roast.secondCrackTime) html += `<p class="mb-1"><strong>2ハゼ:</strong> ${roast.secondCrackTime}</p>`;
                     html += `<p class="mb-1"><strong>総時間:</strong> ${roast.totalRoastTime}</p>`;
+                    if (roast.endOfRoastTemp) html += `<p class="mb-1"><strong>煎り止め:</strong> ${roast.endOfRoastTemp}°C</p>`;
                     if (roast.dtr) html += `<p class="mb-1"><strong>DTR:</strong> ${roast.dtr}%</p>`;
                     if (roast.weatherTemp) html += `<p class="mb-1"><strong>気候(温):</strong> ${roast.weatherTemp} °C</p>`;
                     if (roast.weatherHumidity) html += `<p class="mb-1"><strong>気候(湿):</strong> ${roast.weatherHumidity} %</p>`;
                     html += `</div>`;
-
-                    if (roast.chamberTempLog || roast.beanTempLog) {
-                        html += `<div class="mt-3 pt-3 border-t border-gray-200">`;
-                        html += `<h4 class="text-sm font-semibold text-gray-600 mb-1">温度記録 (庫内 / 豆) & 豆ROR (°C/分):</h4>`;
-                        const chamberTemps = roast.chamberTempLog ? roast.chamberTempLog.split(',') : [];
-                        const beanTemps = roast.beanTempLog ? roast.beanTempLog.split(',') : [];
-                        const rorLogs = roast.rorLog ? roast.rorLog.split(',') : [];
-                        const maxLen = Math.max(chamberTemps.length, beanTemps.length, rorLogs.length +1); 
-
-                        if (maxLen > 0) {
-                            let tempListHtml = '<div class="text-xs text-gray-600 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-2 gap-y-0.5">';
-                            for (let i = 0; i < maxLen; i++) {
-                                const minute = i + 1;
-                                const cTemp = chamberTemps[i] || '-';
-                                const bTemp = beanTemps[i] || '-';
-                                const rorVal = i > 0 ? (rorLogs[i-1] || '-') : '-'; 
-                                tempListHtml += `<span>${minute}分: ${cTemp}/${bTemp} (ROR ${rorVal})</span>`;
-                            }
-                            tempListHtml += '</div>';
-                            html += tempListHtml;
-                        } else {
-                             html += `<p class="text-xs text-gray-500 italic">温度記録なし</p>`;
-                        }
-                        html += `</div>`;
-                    }
-                    
+                    // Note: Temperature log and ROR display in list view is removed for brevity, available in detail view.
                     if (roast.notes) html += `<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-sm text-gray-700 whitespace-pre-wrap"><strong>メモ:</strong><br>${roast.notes}</p></div>`;
                     
                     roastElement.innerHTML = html;
@@ -599,8 +653,12 @@
                     roastElement.querySelector('.delete-roast-button').addEventListener('click', function() {
                         openConfirmModal(`「${roast.beanName}」の記録を削除しますか？`, 'deleteSingle', this.dataset.id);
                     });
-                    roastElement.querySelector('.view-profile-button').addEventListener('click', function() { // Changed from .view-graph-button
+                    roastElement.querySelector('.view-profile-button').addEventListener('click', function() { 
                         openProfileModal(roasts.find(r => r.id === this.dataset.id));
+                    });
+                    roastElement.querySelector('.edit-roast-button').addEventListener('click', function() {
+                        const roastToEdit = roasts.find(r => r.id === this.dataset.id);
+                        if (roastToEdit) enterEditMode(roastToEdit);
                     });
                 });
             }
@@ -608,12 +666,14 @@
             roastForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const formData = new FormData(roastForm);
+                const editingId = editRoastIdInput.value; // Get ID if editing
+
                 const beanTempLog = formData.get('beanTempLog') || '';
                 const firstCrackTime = formData.get('firstCrackTime') || '';
                 const totalRoastTime = formData.get('totalRoastTime');
 
-                const newRoast = {
-                    id: Date.now().toString(),
+                const roastData = {
+                    // id will be set below based on new/edit
                     beanName: formData.get('beanName'),
                     roastDate: formData.get('roastDate'),
                     roastLevel: formData.get('roastLevel'),
@@ -621,9 +681,12 @@
                     origin: formData.get('origin') || '',
                     greenBeanWeight: formData.get('greenBeanWeight') || '',
                     roastedBeanWeight: formData.get('roastedBeanWeight') || '',
+                    turningPointTime: formData.get('turningPointTime') || '', // New
+                    turningPointTemp: formData.get('turningPointTemp') || '', // New
                     firstCrackTime: firstCrackTime,
                     secondCrackTime: formData.get('secondCrackTime') || '',
                     totalRoastTime: totalRoastTime,
+                    endOfRoastTemp: formData.get('endOfRoastTemp') || '', // New
                     dtr: calculateDTR(firstCrackTime, totalRoastTime), 
                     chamberTempLog: formData.get('chamberTempLog') || '', 
                     beanTempLog: beanTempLog,
@@ -633,34 +696,51 @@
                     notes: formData.get('notes') || ''
                 };
 
-                const greenWeight = parseFloat(newRoast.greenBeanWeight);
-                const roastedWeight = parseFloat(newRoast.roastedBeanWeight);
+                const greenWeight = parseFloat(roastData.greenBeanWeight);
+                const roastedWeight = parseFloat(roastData.roastedBeanWeight);
                 if (!isNaN(greenWeight) && !isNaN(roastedWeight) && greenWeight > 0 && roastedWeight >= 0 && roastedWeight <= greenWeight) {
-                    newRoast.weightLossPercentage = (((greenWeight - roastedWeight) / greenWeight) * 100).toFixed(1);
+                    roastData.weightLossPercentage = (((greenWeight - roastedWeight) / greenWeight) * 100).toFixed(1);
+                } else {
+                    roastData.weightLossPercentage = null;
                 }
 
-                const roasts = getRoasts();
-                roasts.push(newRoast);
+                let roasts = getRoasts();
+                if (editingId) { // Editing existing record
+                    const index = roasts.findIndex(r => r.id === editingId);
+                    if (index !== -1) {
+                        roasts[index] = { ...roasts[index], ...roastData, id: editingId }; // Preserve ID, update data
+                        showToast("記録を更新しました。", "success");
+                    } else {
+                        showToast("更新エラー: 記録が見つかりません。", "error");
+                        exitEditMode(); // Exit edit mode if record not found
+                        return;
+                    }
+                } else { // Adding new record
+                    roastData.id = Date.now().toString();
+                    roasts.push(roastData);
+                    showToast("焙煎記録を保存しました。", "success");
+                }
+                
                 saveRoasts(roasts);
                 displayRoasts();
-                roastForm.reset();
-                weightLossDisplay.textContent = '';
-                roastWeatherTempInput.value = ''; 
-                roastWeatherHumidityInput.value = '';
-                weatherMessage.textContent = '';
+                exitEditMode(); // Reset form and exit edit mode
+                
                 if (timerInterval || secondsElapsed > 0) {
                     resetTimerButton.click();
                 }
-                showToast("焙煎記録を保存しました。", "success");
-                document.getElementById('roastFormSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Scroll to top of log section after save/update to see new/updated entry
+                // document.getElementById('roastLogSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
 
             clearFormButton.addEventListener('click', () => {
-                roastForm.reset();
-                weightLossDisplay.textContent = '';
-                roastWeatherTempInput.value = '';
-                roastWeatherHumidityInput.value = '';
-                weatherMessage.textContent = '';
+                // If in edit mode, this button acts like "Cancel Edit"
+                if (editRoastIdInput.value) {
+                    exitEditMode();
+                } else { // Normal clear
+                    roastForm.reset();
+                    weightLossDisplay.textContent = '';
+                    weatherMessage.textContent = '';
+                }
                 if (timerInterval || secondsElapsed > 0) { 
                     resetTimerButton.click();
                 }
@@ -698,7 +778,6 @@
                 openConfirmModal('本当にすべての記録を削除しますか？一度削除すると元に戻せません。', 'deleteAll');
             });
 
-            // --- Profile Detail Modal Functions (Graph + Table) ---
             closeProfileModalButton.onclick = () => profileModal.style.display = "none";
 
             function openProfileModal(roastData) {
@@ -707,26 +786,132 @@
                     profileMessage.textContent = "データが見つかりません。";
                     return;
                 }
-                currentProfileDataForCopy = roastData; // Store for JSON copy
+                currentProfileDataForCopy = roastData; 
                 profileModalTitle.textContent = `${roastData.beanName} - 焙煎プロファイル詳細`;
                 profileModal.style.display = "block";
                 profileMessage.textContent = "グラフを生成中...";
-                profileTableMessage.textContent = ""; // Clear previous table message
+                profileTableMessage.textContent = ""; 
                 
-                // Prepare data for graph
                 const chamberTemps = roastData.chamberTempLog ? roastData.chamberTempLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
                 const beanTemps = roastData.beanTempLog ? roastData.beanTempLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
                 const rorValues = roastData.rorLog ? roastData.rorLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
                 
                 const maxLenGraph = Math.max(chamberTemps.length, beanTemps.length);
                 
-                // Destroy previous chart instance if exists
                 if (roastProfileChart) { roastProfileChart.destroy(); }
                 const ctx = document.getElementById('roastProfileChart').getContext('2d');
 
-                if (maxLenGraph === 0 && rorValues.length === 0) {
-                    profileMessage.textContent = "表示する温度・RORデータがありません。";
-                    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height); // Clear canvas
+                const annotations = {};
+                
+                // Turning Point Annotation
+                if (roastData.turningPointTime && roastData.turningPointTemp) {
+                    const tpTimeSec = timeToSeconds(roastData.turningPointTime);
+                    const tpTemp = parseFloat(roastData.turningPointTemp);
+                    if (tpTimeSec > 0 && !isNaN(tpTemp)) {
+                        // Find the closest minute index for plotting on the main x-axis (minutes)
+                        const tpMinuteMark = tpTimeSec / 60;
+                        annotations[`tpPoint`] = {
+                            type: 'point',
+                            xValue: tpMinuteMark, // X value in terms of minutes
+                            yValue: tpTemp,
+                            backgroundColor: 'rgba(255, 193, 7, 0.8)', // Amber color
+                            borderColor: 'rgba(255, 193, 7, 1)',
+                            radius: 6,
+                            borderWidth: 2,
+                            label: {
+                                enabled: true,
+                                content: `TP: ${roastData.turningPointTime} @ ${tpTemp}°C`,
+                                position: 'start',
+                                font: { size: 10 },
+                                yAdjust: -15
+                            }
+                        };
+                    }
+                }
+
+                // First Crack Annotation
+                if (roastData.firstCrackTime) {
+                    const fcTimeSec = timeToSeconds(roastData.firstCrackTime);
+                    if (fcTimeSec > 0) {
+                        annotations[`fcLine`] = {
+                            type: 'line',
+                            xMin: fcTimeSec / 60,
+                            xMax: fcTimeSec / 60,
+                            borderColor: 'rgba(234, 179, 8, 0.7)', // yellow-500
+                            borderWidth: 2,
+                            borderDash: [6, 6],
+                            label: {
+                                enabled: true,
+                                content: `1C: ${roastData.firstCrackTime}`,
+                                position: 'start',
+                                font: { size: 10 },
+                                rotation: -90,
+                                yAdjust: -10,
+                                xAdjust: -5
+                            }
+                        };
+                    }
+                }
+                // Second Crack Annotation
+                if (roastData.secondCrackTime) {
+                    const scTimeSec = timeToSeconds(roastData.secondCrackTime);
+                     if (scTimeSec > 0) {
+                        annotations[`scLine`] = {
+                            type: 'line',
+                            xMin: scTimeSec / 60,
+                            xMax: scTimeSec / 60,
+                            borderColor: 'rgba(249, 115, 22, 0.7)', // orange-500
+                            borderWidth: 2,
+                            borderDash: [6, 6],
+                            label: {
+                                enabled: true,
+                                content: `2C: ${roastData.secondCrackTime}`,
+                                position: 'start',
+                                font: { size: 10 },
+                                rotation: -90,
+                                yAdjust: -10,
+                                xAdjust: -5
+                            }
+                        };
+                    }
+                }
+                // End of Roast Annotation (using totalRoastTime and endOfRoastTemp)
+                if (roastData.totalRoastTime && roastData.endOfRoastTemp) {
+                    const eorTimeSec = timeToSeconds(roastData.totalRoastTime);
+                    const eorTemp = parseFloat(roastData.endOfRoastTemp);
+                    if (eorTimeSec > 0 && !isNaN(eorTemp)) {
+                        annotations[`eorLine`] = { // Vertical line at EOR time
+                            type: 'line',
+                            xMin: eorTimeSec / 60,
+                            xMax: eorTimeSec / 60,
+                            borderColor: 'rgba(34, 197, 94, 0.7)', // green-500
+                            borderWidth: 2,
+                            label: {
+                                enabled: true,
+                                content: `EOR: ${roastData.totalRoastTime} @ ${eorTemp}°C`,
+                                position: 'end',
+                                font: { size: 10 },
+                                rotation: -90,
+                                yAdjust: 15,
+                                xAdjust: -5
+                            }
+                        };
+                         annotations[`eorPoint`] = { // Point at EOR temp and time
+                            type: 'point',
+                            xValue: eorTimeSec / 60, 
+                            yValue: eorTemp,
+                            backgroundColor: 'rgba(34, 197, 94, 0.8)', 
+                            borderColor: 'rgba(34, 197, 94, 1)',
+                            radius: 6,
+                            borderWidth: 2,
+                        };
+                    }
+                }
+
+
+                if (maxLenGraph === 0 && rorValues.length === 0 && Object.keys(annotations).length === 0) {
+                    profileMessage.textContent = "表示する温度・ROR・イベントデータがありません。";
+                    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height); 
                 } else {
                     const tempLabels = Array.from({length: maxLenGraph}, (_, i) => `${i}分`);
                     const datasets = [];
@@ -797,6 +982,9 @@
                                             return label;
                                         }
                                     }
+                                },
+                                annotation: { // Annotation plugin configuration
+                                    annotations: annotations
                                 }
                             }
                         }
@@ -804,12 +992,11 @@
                     profileMessage.textContent = "グラフが表示されました。";
                 }
 
-                // Populate data table
-                profileDataTableBody.innerHTML = ''; // Clear previous table rows
+                profileDataTableBody.innerHTML = ''; 
                 const maxTableLen = Math.max(
                     (roastData.chamberTempLog || "").split(',').filter(Boolean).length,
                     (roastData.beanTempLog || "").split(',').filter(Boolean).length,
-                    (roastData.rorLog || "").split(',').filter(Boolean).length + 1 // ROR has one less entry
+                    (roastData.rorLog || "").split(',').filter(Boolean).length + 1 
                 );
 
                 if (maxTableLen === 0) {
@@ -846,10 +1033,9 @@
             });
 
 
-            // General Modal Closing (clicking outside)
              window.onclick = (event) => {
                 if (event.target == confirmModal) confirmModal.style.display = "none";
-                if (event.target == profileModal) profileModal.style.display = "none"; // Changed from graphModal
+                if (event.target == profileModal) profileModal.style.display = "none"; 
             }
 
 
@@ -861,13 +1047,15 @@
                 }
                 const headers = [
                     "ID", "豆の名前", "焙煎日", "焙煎度", "産地", "投入温度(°C)",
+                    "TP時間", "TP温度(°C)", // New
                     "生豆重量(g)", "焙煎後重量(g)", "重量減少率(%)",
-                    "1ハゼ開始", "2ハゼ開始", "総焙煎時間", "DTR(%)",
+                    "1ハゼ開始", "2ハゼ開始", "総焙煎時間", "煎り止め温度(°C)", // New
+                    "DTR(%)",
                     "庫内温度ログ", "豆温度ログ", "RORログ(豆温度 °C/分)",
                     "気候(気温°C)", "気候(湿度%)", "メモ"
                 ];
                 const escapeCSV = (field) => {
-                    if (field === null || typeof field === 'undefined') return '';
+                    if (field === null || typeof field === 'undefined' || field === "") return ''; // Return empty for null, undefined, or empty string
                     const stringField = String(field);
                     if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
                         return `"${stringField.replace(/"/g, '""')}"`;
@@ -877,8 +1065,10 @@
                 const csvRows = roasts.map(r => [
                     escapeCSV(r.id), escapeCSV(r.beanName), escapeCSV(r.roastDate), escapeCSV(r.roastLevel), escapeCSV(r.origin),
                     escapeCSV(r.chargingTemperature), 
+                    escapeCSV(r.turningPointTime), escapeCSV(r.turningPointTemp), // New
                     escapeCSV(r.greenBeanWeight), escapeCSV(r.roastedBeanWeight), escapeCSV(r.weightLossPercentage),
                     escapeCSV(r.firstCrackTime), escapeCSV(r.secondCrackTime), escapeCSV(r.totalRoastTime),
+                    escapeCSV(r.endOfRoastTemp), // New
                     escapeCSV(r.dtr ? r.dtr + '%' : ''), 
                     escapeCSV(r.chamberTempLog), escapeCSV(r.beanTempLog), 
                     escapeCSV(r.rorLog), 
@@ -947,4 +1137,5 @@
     </script>
 </body>
 </html>
+
 
