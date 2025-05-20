@@ -58,6 +58,46 @@
             border-left: 4px solid #fbbf24; /* amber-400 */
             padding-left: 1rem;
         }
+        /* Toggle Switch CSS */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px; 
+            height: 28px; 
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 28px; 
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px; 
+            width: 20px;  
+            left: 4px;    
+            bottom: 4px;  
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #22c55e; /* green-500 */
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px); 
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -78,9 +118,17 @@
                     <button id="pauseTimerButton" class="px-4 py-2 w-24 sm:w-28 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-yellow-500 hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-400" disabled>一時停止</button>
                     <button id="resetTimerButton" class="px-4 py-2 w-24 sm:w-28 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500" disabled>リセット</button>
                 </div>
-                <div class="text-center">
+                <div class="text-center mb-4">
                      <button id="logTimeButton" class="px-4 py-2 border border-amber-500 rounded-md shadow-sm text-sm font-medium text-amber-600 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-400">現在の時間をハゼ/総時間等へ</button>
                 </div>
+                <div class="flex items-center justify-center space-x-2 mt-4">
+                    <label for="voiceCountdownToggle" class="text-sm font-medium text-gray-700">音声秒読み (1分ごと):</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="voiceCountdownToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
                 <div id="liveTempLoggingSection" class="mt-6 pt-4 border-t border-gray-200 hidden">
                     <h3 class="text-lg font-medium text-gray-800 mb-2 text-center">現在の温度を記録 (タイマー作動中)</h3>
                     <p class="text-center text-sm text-gray-600 mb-3">現在の経過時間: <span id="currentTimerMinuteDisplay" class="font-semibold">0</span> 分目</p>
@@ -280,16 +328,13 @@
     <div id="toast-container" class="fixed bottom-5 right-5 z-[2001] space-y-2"></div>
 
     <script>
-        // Chart.js Annotation plugin registration (if not globally registered via script tag already, though it should be)
-        // Chart.register(ChartAnnotation); // This might be needed if using modules, but with CDN script, it's usually auto-registered.
-
         document.addEventListener('DOMContentLoaded', () => {
             // DOM Elements
             const roastForm = document.getElementById('roastForm');
-            const formTitle = document.getElementById('formTitle'); // For changing title in edit mode
-            const editRoastIdInput = document.getElementById('editRoastId'); // Hidden input for edit ID
-            const saveRecordButton = document.getElementById('saveRecordButton'); // Submit button
-            const cancelEditButton = document.getElementById('cancelEditButton'); // Cancel edit button
+            const formTitle = document.getElementById('formTitle'); 
+            const editRoastIdInput = document.getElementById('editRoastId'); 
+            const saveRecordButton = document.getElementById('saveRecordButton'); 
+            const cancelEditButton = document.getElementById('cancelEditButton'); 
             const roastLog = document.getElementById('roastLog');
             const clearFormButton = document.getElementById('clearFormButton');
             const deleteAllButton = document.getElementById('deleteAllButton');
@@ -315,6 +360,7 @@
             const liveChamberTempInput = document.getElementById('liveChamberTemp');
             const liveBeanTempInput = document.getElementById('liveBeanTemp');
             const logLiveTempButton = document.getElementById('logLiveTempButton');
+            const voiceCountdownToggle = document.getElementById('voiceCountdownToggle'); 
 
             const chamberTempLogInput = document.getElementById('chamberTempLog'); 
             const beanTempLogInput = document.getElementById('beanTempLog');
@@ -348,6 +394,34 @@
             let timerInterval = null;
             let secondsElapsed = 0;
             let timerPaused = false;
+            let countdownSpeechInterval = null; 
+
+            const synth = window.speechSynthesis;
+            let voices = [];
+            function populateVoices() {
+                voices = synth.getVoices().filter(voice => voice.lang === 'ja-JP');
+            }
+            populateVoices();
+            if (synth.onvoiceschanged !== undefined) {
+                synth.onvoiceschanged = populateVoices;
+            }
+
+            function speak(text, rate = 1.2) { // Added rate parameter
+                if (!voiceCountdownToggle.checked || !synth) {
+                    return;
+                }
+                synth.cancel(); 
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ja-JP';
+                if (voices.length > 0) {
+                    utterance.voice = voices[0]; 
+                }
+                utterance.pitch = 1;
+                utterance.rate = rate; // Use provided rate
+                synth.speak(utterance);
+            }
+
 
             function showToast(message, type = 'info', duration = 3000) {
                 const toastContainer = document.getElementById('toast-container');
@@ -384,16 +458,15 @@
                 return (minutes * 60) + seconds;
             }
             
-            // Helper to convert seconds to MM:SS string, ensuring valid numbers
             function secondsToTime(totalSeconds) {
-                if (isNaN(totalSeconds) || totalSeconds < 0) return ''; // Return empty for invalid input
+                if (isNaN(totalSeconds) || totalSeconds < 0) return ''; 
                 const minutes = Math.floor(totalSeconds / 60);
-                const seconds = Math.floor(totalSeconds % 60); // Use Math.floor for safety
+                const seconds = Math.floor(totalSeconds % 60); 
                 return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             }
 
 
-            function formatTime(totalSeconds) { // Used by timer display
+            function formatTime(totalSeconds) { 
                 const minutes = Math.floor(totalSeconds / 60);
                 const seconds = totalSeconds % 60;
                 return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -403,6 +476,29 @@
                 timerDisplay.textContent = formatTime(secondsElapsed);
                 const currentMinute = Math.floor(secondsElapsed / 60);
                 currentTimerMinuteDisplay.textContent = currentMinute + 1;
+
+                if (voiceCountdownToggle.checked && timerInterval && !timerPaused) {
+                    const secondsInCurrentMinute = secondsElapsed % 60;
+                    
+                    if (secondsInCurrentMinute === 50) { 
+                        let count = 10;
+                        speak(String(count)); // Speak "10"
+                        if (countdownSpeechInterval) clearInterval(countdownSpeechInterval); 
+                        countdownSpeechInterval = setInterval(() => {
+                            count--;
+                            if (count > 0) {
+                                speak(String(count)); // Speak "9", "8", ... "1"
+                            } else if (count === 0) {
+                                // At 00 seconds of the *next* minute, secondsElapsed will be like 60, 120, 180...
+                                // So, the minute that has just *passed* is secondsElapsed / 60
+                                const minutePassed = secondsElapsed / 60;
+                                speak(`記録タイミングです。${minutePassed}分経過。`, 1.0); // Slightly slower for this message
+                                clearInterval(countdownSpeechInterval);
+                                countdownSpeechInterval = null;
+                            }
+                        }, 1000);
+                    }
+                }
             }
 
             startTimerButton.addEventListener('click', () => {
@@ -424,12 +520,14 @@
                 resetTimerButton.disabled = false;
                 startTimerButton.textContent = '開始';
                 liveTempLoggingSection.classList.remove('hidden');
-                updateTimerDisplay();
+                updateTimerDisplay(); 
             });
 
             pauseTimerButton.addEventListener('click', () => {
                 if (!timerInterval) return; 
                 clearInterval(timerInterval);
+                if (countdownSpeechInterval) clearInterval(countdownSpeechInterval); 
+                countdownSpeechInterval = null;
                 timerInterval = null;
                 timerPaused = true;
                 startTimerButton.disabled = false; 
@@ -440,6 +538,8 @@
 
             resetTimerButton.addEventListener('click', () => {
                 clearInterval(timerInterval);
+                if (countdownSpeechInterval) clearInterval(countdownSpeechInterval);
+                countdownSpeechInterval = null;
                 timerInterval = null;
                 secondsElapsed = 0;
                 timerPaused = false;
@@ -454,7 +554,6 @@
             
             logTimeButton.addEventListener('click', () => {
                 const currentTime = formatTime(secondsElapsed);
-                // Prioritize TP, then 1C, then 2C, then Total
                 if (!turningPointTimeInput.value) {
                     turningPointTimeInput.value = currentTime;
                 } else if (!document.getElementById('firstCrackTime').value) {
@@ -545,13 +644,11 @@
                 return rorValues.join(','); 
             }
 
-            // --- Edit Mode Functions ---
             function enterEditMode(roast) {
                 formTitle.textContent = `「${roast.beanName}」の記録を編集中`;
                 formTitle.classList.add('editing-indicator');
                 editRoastIdInput.value = roast.id;
 
-                // Populate form
                 document.getElementById('beanName').value = roast.beanName;
                 document.getElementById('roastDate').value = roast.roastDate;
                 document.getElementById('roastLevel').value = roast.roastLevel;
@@ -570,7 +667,7 @@
                 document.getElementById('roastWeatherTemp').value = roast.weatherTemp || '';
                 document.getElementById('roastWeatherHumidity').value = roast.weatherHumidity || '';
                 document.getElementById('notes').value = roast.notes || '';
-                calculateAndUpdateWeightLoss(); // Recalculate weight loss for display
+                calculateAndUpdateWeightLoss(); 
 
                 saveRecordButton.textContent = '更新を保存';
                 cancelEditButton.classList.remove('hidden');
@@ -644,7 +741,6 @@
                     if (roast.weatherTemp) html += `<p class="mb-1"><strong>気候(温):</strong> ${roast.weatherTemp} °C</p>`;
                     if (roast.weatherHumidity) html += `<p class="mb-1"><strong>気候(湿):</strong> ${roast.weatherHumidity} %</p>`;
                     html += `</div>`;
-                    // Note: Temperature log and ROR display in list view is removed for brevity, available in detail view.
                     if (roast.notes) html += `<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-sm text-gray-700 whitespace-pre-wrap"><strong>メモ:</strong><br>${roast.notes}</p></div>`;
                     
                     roastElement.innerHTML = html;
@@ -666,14 +762,13 @@
             roastForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const formData = new FormData(roastForm);
-                const editingId = editRoastIdInput.value; // Get ID if editing
+                const editingId = editRoastIdInput.value; 
 
                 const beanTempLog = formData.get('beanTempLog') || '';
                 const firstCrackTime = formData.get('firstCrackTime') || '';
                 const totalRoastTime = formData.get('totalRoastTime');
 
                 const roastData = {
-                    // id will be set below based on new/edit
                     beanName: formData.get('beanName'),
                     roastDate: formData.get('roastDate'),
                     roastLevel: formData.get('roastLevel'),
@@ -681,12 +776,12 @@
                     origin: formData.get('origin') || '',
                     greenBeanWeight: formData.get('greenBeanWeight') || '',
                     roastedBeanWeight: formData.get('roastedBeanWeight') || '',
-                    turningPointTime: formData.get('turningPointTime') || '', // New
-                    turningPointTemp: formData.get('turningPointTemp') || '', // New
+                    turningPointTime: formData.get('turningPointTime') || '', 
+                    turningPointTemp: formData.get('turningPointTemp') || '', 
                     firstCrackTime: firstCrackTime,
                     secondCrackTime: formData.get('secondCrackTime') || '',
                     totalRoastTime: totalRoastTime,
-                    endOfRoastTemp: formData.get('endOfRoastTemp') || '', // New
+                    endOfRoastTemp: formData.get('endOfRoastTemp') || '', 
                     dtr: calculateDTR(firstCrackTime, totalRoastTime), 
                     chamberTempLog: formData.get('chamberTempLog') || '', 
                     beanTempLog: beanTempLog,
@@ -705,17 +800,17 @@
                 }
 
                 let roasts = getRoasts();
-                if (editingId) { // Editing existing record
+                if (editingId) { 
                     const index = roasts.findIndex(r => r.id === editingId);
                     if (index !== -1) {
-                        roasts[index] = { ...roasts[index], ...roastData, id: editingId }; // Preserve ID, update data
+                        roasts[index] = { ...roasts[index], ...roastData, id: editingId }; 
                         showToast("記録を更新しました。", "success");
                     } else {
                         showToast("更新エラー: 記録が見つかりません。", "error");
-                        exitEditMode(); // Exit edit mode if record not found
+                        exitEditMode(); 
                         return;
                     }
-                } else { // Adding new record
+                } else { 
                     roastData.id = Date.now().toString();
                     roasts.push(roastData);
                     showToast("焙煎記録を保存しました。", "success");
@@ -723,20 +818,17 @@
                 
                 saveRoasts(roasts);
                 displayRoasts();
-                exitEditMode(); // Reset form and exit edit mode
+                exitEditMode(); 
                 
                 if (timerInterval || secondsElapsed > 0) {
                     resetTimerButton.click();
                 }
-                // Scroll to top of log section after save/update to see new/updated entry
-                // document.getElementById('roastLogSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
 
             clearFormButton.addEventListener('click', () => {
-                // If in edit mode, this button acts like "Cancel Edit"
                 if (editRoastIdInput.value) {
                     exitEditMode();
-                } else { // Normal clear
+                } else { 
                     roastForm.reset();
                     weightLossDisplay.textContent = '';
                     weatherMessage.textContent = '';
@@ -803,107 +895,65 @@
 
                 const annotations = {};
                 
-                // Turning Point Annotation
                 if (roastData.turningPointTime && roastData.turningPointTemp) {
                     const tpTimeSec = timeToSeconds(roastData.turningPointTime);
                     const tpTemp = parseFloat(roastData.turningPointTemp);
-                    if (tpTimeSec > 0 && !isNaN(tpTemp)) {
-                        // Find the closest minute index for plotting on the main x-axis (minutes)
+                    if (tpTimeSec >= 0 && !isNaN(tpTemp)) { 
                         const tpMinuteMark = tpTimeSec / 60;
                         annotations[`tpPoint`] = {
-                            type: 'point',
-                            xValue: tpMinuteMark, // X value in terms of minutes
-                            yValue: tpTemp,
-                            backgroundColor: 'rgba(255, 193, 7, 0.8)', // Amber color
-                            borderColor: 'rgba(255, 193, 7, 1)',
-                            radius: 6,
-                            borderWidth: 2,
+                            type: 'point', xValue: tpMinuteMark, yValue: tpTemp,
+                            backgroundColor: 'rgba(251, 191, 36, 0.9)', borderColor: 'rgba(217, 119, 6, 1)', 
+                            radius: 7, borderWidth: 2, pointStyle: 'triangle', rotation: 180,
                             label: {
-                                enabled: true,
-                                content: `TP: ${roastData.turningPointTime} @ ${tpTemp}°C`,
-                                position: 'start',
-                                font: { size: 10 },
-                                yAdjust: -15
+                                enabled: true, content: `TP ${roastData.turningPointTime} @ ${tpTemp}°C`,
+                                position: 'start', font: { size: 10, weight: 'bold' }, yAdjust: -15, backgroundColor: 'rgba(255,255,255,0.7)'
                             }
                         };
                     }
                 }
 
-                // First Crack Annotation
                 if (roastData.firstCrackTime) {
                     const fcTimeSec = timeToSeconds(roastData.firstCrackTime);
                     if (fcTimeSec > 0) {
                         annotations[`fcLine`] = {
-                            type: 'line',
-                            xMin: fcTimeSec / 60,
-                            xMax: fcTimeSec / 60,
-                            borderColor: 'rgba(234, 179, 8, 0.7)', // yellow-500
-                            borderWidth: 2,
-                            borderDash: [6, 6],
+                            type: 'line', xMin: fcTimeSec / 60, xMax: fcTimeSec / 60,
+                            borderColor: 'rgba(234, 179, 8, 0.8)', borderWidth: 2, borderDash: [6, 6],
                             label: {
-                                enabled: true,
-                                content: `1C: ${roastData.firstCrackTime}`,
-                                position: 'start',
-                                font: { size: 10 },
-                                rotation: -90,
-                                yAdjust: -10,
-                                xAdjust: -5
+                                enabled: true, content: `1C ${roastData.firstCrackTime}`, position: 'start',
+                                font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: -10, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
                             }
                         };
                     }
                 }
-                // Second Crack Annotation
                 if (roastData.secondCrackTime) {
                     const scTimeSec = timeToSeconds(roastData.secondCrackTime);
                      if (scTimeSec > 0) {
                         annotations[`scLine`] = {
-                            type: 'line',
-                            xMin: scTimeSec / 60,
-                            xMax: scTimeSec / 60,
-                            borderColor: 'rgba(249, 115, 22, 0.7)', // orange-500
-                            borderWidth: 2,
-                            borderDash: [6, 6],
+                            type: 'line', xMin: scTimeSec / 60, xMax: scTimeSec / 60,
+                            borderColor: 'rgba(249, 115, 22, 0.8)', borderWidth: 2, borderDash: [6, 6],
                             label: {
-                                enabled: true,
-                                content: `2C: ${roastData.secondCrackTime}`,
-                                position: 'start',
-                                font: { size: 10 },
-                                rotation: -90,
-                                yAdjust: -10,
-                                xAdjust: -5
+                                enabled: true, content: `2C ${roastData.secondCrackTime}`, position: 'start',
+                                font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: -10, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
                             }
                         };
                     }
                 }
-                // End of Roast Annotation (using totalRoastTime and endOfRoastTemp)
                 if (roastData.totalRoastTime && roastData.endOfRoastTemp) {
                     const eorTimeSec = timeToSeconds(roastData.totalRoastTime);
                     const eorTemp = parseFloat(roastData.endOfRoastTemp);
                     if (eorTimeSec > 0 && !isNaN(eorTemp)) {
-                        annotations[`eorLine`] = { // Vertical line at EOR time
-                            type: 'line',
-                            xMin: eorTimeSec / 60,
-                            xMax: eorTimeSec / 60,
-                            borderColor: 'rgba(34, 197, 94, 0.7)', // green-500
-                            borderWidth: 2,
+                        annotations[`eorLine`] = { 
+                            type: 'line', xMin: eorTimeSec / 60, xMax: eorTimeSec / 60,
+                            borderColor: 'rgba(22, 163, 74, 0.8)', borderWidth: 2,
                             label: {
-                                enabled: true,
-                                content: `EOR: ${roastData.totalRoastTime} @ ${eorTemp}°C`,
-                                position: 'end',
-                                font: { size: 10 },
-                                rotation: -90,
-                                yAdjust: 15,
-                                xAdjust: -5
+                                enabled: true, content: `EOR ${roastData.totalRoastTime} @ ${eorTemp}°C`, position: 'end',
+                                font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: 15, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
                             }
                         };
-                         annotations[`eorPoint`] = { // Point at EOR temp and time
-                            type: 'point',
-                            xValue: eorTimeSec / 60, 
-                            yValue: eorTemp,
-                            backgroundColor: 'rgba(34, 197, 94, 0.8)', 
-                            borderColor: 'rgba(34, 197, 94, 1)',
-                            radius: 6,
-                            borderWidth: 2,
+                         annotations[`eorPoint`] = { 
+                            type: 'point', xValue: eorTimeSec / 60, yValue: eorTemp,
+                            backgroundColor: 'rgba(22, 163, 74, 0.9)', borderColor: 'rgba(21, 128, 61, 1)', 
+                            radius: 7, borderWidth: 2, pointStyle: 'star'
                         };
                     }
                 }
@@ -983,7 +1033,7 @@
                                         }
                                     }
                                 },
-                                annotation: { // Annotation plugin configuration
+                                annotation: { 
                                     annotations: annotations
                                 }
                             }
@@ -1047,15 +1097,15 @@
                 }
                 const headers = [
                     "ID", "豆の名前", "焙煎日", "焙煎度", "産地", "投入温度(°C)",
-                    "TP時間", "TP温度(°C)", // New
+                    "TP時間", "TP温度(°C)", 
                     "生豆重量(g)", "焙煎後重量(g)", "重量減少率(%)",
-                    "1ハゼ開始", "2ハゼ開始", "総焙煎時間", "煎り止め温度(°C)", // New
+                    "1ハゼ開始", "2ハゼ開始", "総焙煎時間", "煎り止め温度(°C)", 
                     "DTR(%)",
                     "庫内温度ログ", "豆温度ログ", "RORログ(豆温度 °C/分)",
                     "気候(気温°C)", "気候(湿度%)", "メモ"
                 ];
                 const escapeCSV = (field) => {
-                    if (field === null || typeof field === 'undefined' || field === "") return ''; // Return empty for null, undefined, or empty string
+                    if (field === null || typeof field === 'undefined' || field === "") return ''; 
                     const stringField = String(field);
                     if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
                         return `"${stringField.replace(/"/g, '""')}"`;
@@ -1065,10 +1115,10 @@
                 const csvRows = roasts.map(r => [
                     escapeCSV(r.id), escapeCSV(r.beanName), escapeCSV(r.roastDate), escapeCSV(r.roastLevel), escapeCSV(r.origin),
                     escapeCSV(r.chargingTemperature), 
-                    escapeCSV(r.turningPointTime), escapeCSV(r.turningPointTemp), // New
+                    escapeCSV(r.turningPointTime), escapeCSV(r.turningPointTemp), 
                     escapeCSV(r.greenBeanWeight), escapeCSV(r.roastedBeanWeight), escapeCSV(r.weightLossPercentage),
                     escapeCSV(r.firstCrackTime), escapeCSV(r.secondCrackTime), escapeCSV(r.totalRoastTime),
-                    escapeCSV(r.endOfRoastTemp), // New
+                    escapeCSV(r.endOfRoastTemp), 
                     escapeCSV(r.dtr ? r.dtr + '%' : ''), 
                     escapeCSV(r.chamberTempLog), escapeCSV(r.beanTempLog), 
                     escapeCSV(r.rorLog), 
@@ -1137,5 +1187,3 @@
     </script>
 </body>
 </html>
-
-
