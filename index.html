@@ -104,12 +104,12 @@
             padding: 5px 8px;
             position: absolute;
             z-index: 1;
-            bottom: 125%; /* Position above the button */
+            bottom: 125%; 
             left: 50%;
-            margin-left: -110px; /* Use half of the width to center the tooltip */
+            margin-left: -110px; 
             opacity: 0;
             transition: opacity 0.3s;
-            font-size: 0.75rem; /* text-xs */
+            font-size: 0.75rem; 
             line-height: 1.25;
         }
         .tooltip:hover .tooltiptext {
@@ -402,11 +402,11 @@
             const roastLog = document.getElementById('roastLog');
             const clearFormButton = document.getElementById('clearFormButton');
             const deleteAllButton = document.getElementById('deleteAllButton');
-            const exportAllButton = document.getElementById('exportAllButton'); // CSV All
+            const exportAllButton = document.getElementById('exportAllButton'); 
             const exportFilteredButton = document.getElementById('exportFilteredButton'); 
-            const exportBackupButton = document.getElementById('exportBackupButton'); // JSON Backup
-            const importBackupInput = document.getElementById('importBackupInput'); // File input for JSON import
-            const importBackupButton = document.getElementById('importBackupButton'); // Button to trigger file input
+            const exportBackupButton = document.getElementById('exportBackupButton'); 
+            const importBackupInput = document.getElementById('importBackupInput'); 
+            const importBackupButton = document.getElementById('importBackupButton'); 
 
             const searchInput = document.getElementById('searchInput'); 
             const searchButton = document.getElementById('searchButton'); 
@@ -455,12 +455,12 @@
             const confirmModal = document.getElementById('confirmModal');
             const closeConfirmModalButton = document.getElementById('closeConfirmModalButton');
             const confirmModalMessage = document.getElementById('confirmModalMessage');
-            const importOptionsDiv = document.getElementById('importOptions'); // For import mode
+            const importOptionsDiv = document.getElementById('importOptions'); 
             const cancelConfirmButton = document.getElementById('cancelConfirmButton');
             const confirmActionButton = document.getElementById('confirmActionButton');
             let currentAction = null;
             let currentItemId = null;
-            let fileToImport = null; // For storing the file to import
+            let fileToImport = null; 
 
             const profileModal = document.getElementById('profileModal'); 
             const closeProfileModalButton = document.getElementById('closeProfileModalButton'); 
@@ -485,27 +485,62 @@
             let voices = [];
             function populateVoices() {
                 voices = synth.getVoices().filter(voice => voice.lang === 'ja-JP');
+                 if (voices.length === 0 && synth.getVoices().length > 0) { // Fallback if no ja-JP specific
+                    voices = synth.getVoices().filter(voice => voice.lang.startsWith('ja'));
+                }
             }
+            
+            // Initial population attempt
             populateVoices();
+            // If voices are not loaded yet, wait for onvoiceschanged
             if (synth.onvoiceschanged !== undefined) {
                 synth.onvoiceschanged = populateVoices;
             }
+
 
             function speak(text, rate = 1.2) { 
                 if (!voiceCountdownToggle.checked || !synth) {
                     return;
                 }
-                synth.cancel(); 
+                // If speaking, cancel before speaking new text to avoid overlap, especially for rapid countdowns
+                if (synth.speaking) {
+                    synth.cancel();
+                }
                 
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'ja-JP';
                 if (voices.length > 0) {
                     utterance.voice = voices[0]; 
+                } else {
+                    // console.warn("No Japanese voice found for speech synthesis. Using default.");
                 }
                 utterance.pitch = 1;
                 utterance.rate = rate; 
-                synth.speak(utterance);
+                
+                // Adding a small delay for Safari to handle rapid speak calls better
+                setTimeout(() => {
+                    synth.speak(utterance);
+                }, 50); // 50ms delay
             }
+            
+            // Attempt to "unlock" audio on Safari with a silent utterance on user interaction
+            function unlockAudio() {
+                if (synth && !synth.speaking && !synth.pending) {
+                    const utterance = new SpeechSynthesisUtterance('');
+                    utterance.volume = 0; // Silent
+                    synth.speak(utterance);
+                }
+            }
+            voiceCountdownToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    unlockAudio(); // Try to unlock audio when toggle is first enabled
+                    speak("音声秒読みオン", 1.0);
+                } else {
+                    if(countdownSpeechInterval) clearInterval(countdownSpeechInterval);
+                    synth.cancel(); // Stop any ongoing speech
+                    speak("音声秒読みオフ", 1.0);
+                }
+            });
 
 
             function showToast(message, type = 'info', duration = 3000) {
@@ -642,13 +677,13 @@
 
             function updateTimerDisplay() {
                 timerDisplay.textContent = formatTime(secondsElapsed);
-                const currentMinute = Math.floor(secondsElapsed / 60);
-                currentTimerMinuteDisplay.textContent = currentMinute + 1;
+                const currentMinuteDisplayVal = Math.floor(secondsElapsed / 60) + 1;
+                currentTimerMinuteDisplay.textContent = currentMinuteDisplayVal;
 
                 if (voiceCountdownToggle.checked && timerInterval && !timerPaused) {
                     const secondsInCurrentMinute = secondsElapsed % 60;
                     
-                    if (secondsInCurrentMinute === 50) { 
+                    if (secondsInCurrentMinute === 50 && secondsElapsed >= 50) { // Ensure countdown doesn't start at 00:50 for the very first minute before 1:00
                         let count = 10;
                         speak(String(count)); 
                         if (countdownSpeechInterval) clearInterval(countdownSpeechInterval); 
@@ -657,8 +692,9 @@
                             if (count > 0) {
                                 speak(String(count)); 
                             } else if (count === 0) {
-                                const minutePassed = secondsElapsed / 60;
-                                speak(`記録タイミングです。${minutePassed}分経過。`, 1.0); 
+                                // Correctly get the minute that has just *passed* or is *about to complete*
+                                const minuteJustCompleted = Math.floor((secondsElapsed + 10) / 60) ; // +10 to get the minute mark it's counting down to
+                                speak(`記録タイミングです。${minuteJustCompleted}分経過。`, 1.0); 
                                 clearInterval(countdownSpeechInterval);
                                 countdownSpeechInterval = null;
                             }
@@ -673,6 +709,7 @@
             }
 
             startTimerButton.addEventListener('click', () => {
+                unlockAudio(); // Attempt to unlock audio on user interaction
                 if (timerInterval) return; 
                 if (timerPaused) { 
                     timerPaused = false;
@@ -902,8 +939,8 @@
                     deleteAllButton.classList.toggle('hidden', allRoasts.length === 0);
                     exportAllButton.classList.toggle('hidden', allRoasts.length === 0);
                     exportFilteredButton.classList.toggle('hidden', roasts.length === 0 && !currentFilter); 
-                    exportBackupButton.classList.toggle('hidden', allRoasts.length === 0); // Hide backup if no data
-                    importBackupButton.classList.remove('hidden'); // Always show import
+                    exportBackupButton.classList.toggle('hidden', allRoasts.length === 0); 
+                    importBackupButton.classList.remove('hidden'); 
                     return;
                 }
                 deleteAllButton.classList.remove('hidden');
@@ -1050,11 +1087,11 @@
                 }
             });
             
-            function openConfirmModal(message, action, itemId = null, data = null) { // Added data for import
+            function openConfirmModal(message, action, itemId = null, data = null) { 
                 confirmModalMessage.textContent = message; 
                 currentAction = action;
-                currentItemId = itemId; // Used for single delete
-                fileToImport = data; // Used for import action
+                currentItemId = itemId; 
+                fileToImport = data; 
 
                 if (action === 'importJson') {
                     importOptionsDiv.classList.remove('hidden');
@@ -1088,7 +1125,6 @@
                         if (!Array.isArray(importedRoasts)) {
                             throw new Error("ファイル形式が正しくありません。記録の配列ではありません。");
                         }
-                        // Basic validation for each imported roast object (can be more thorough)
                         const isValidRoast = importedRoasts.every(r => r && typeof r.beanName === 'string' && typeof r.roastDate === 'string');
                         if (!isValidRoast) {
                             throw new Error("ファイル内容が正しくありません。必須項目が不足している記録があります。");
@@ -1098,9 +1134,7 @@
                         if (importMode === 'overwrite') {
                             currentRoasts = importedRoasts;
                             showToast("データを上書きインポートしました。", "success");
-                        } else { // append
-                            // Avoid duplicates by checking ID, or simply append if IDs are unique (e.g., timestamp-based)
-                            // For simplicity, this example appends. For more robust import, add ID check.
+                        } else { 
                             currentRoasts.push(...importedRoasts);
                             showToast(`${importedRoasts.length}件の記録を追加インポートしました。`, "success");
                         }
@@ -1109,7 +1143,7 @@
                         showToast(`インポートエラー: ${err.message}`, "error");
                         console.error("Import error:", err);
                     }
-                    fileToImport = null; // Clear after attempting import
+                    fileToImport = null; 
                 }
                 displayRoasts(currentFilter); 
                 confirmModal.style.display = "none";
@@ -1424,14 +1458,13 @@
                 showToast("全データをCSV形式でエクスポートしました。", "success");
             });
 
-            // --- JSON Backup and Restore ---
             exportBackupButton.addEventListener('click', () => {
                 const roasts = getRoasts();
                 if (roasts.length === 0) {
                     showToast("バックアップする記録がありません。", "info");
                     return;
                 }
-                const jsonData = JSON.stringify(roasts, null, 2); // Pretty print JSON
+                const jsonData = JSON.stringify(roasts, null, 2); 
                 const blob = new Blob([jsonData], { type: 'application/json;charset=utf-8;' });
                 const link = document.createElement('a');
                 const url = URL.createObjectURL(blob);
@@ -1447,7 +1480,7 @@
             });
 
             importBackupButton.addEventListener('click', () => {
-                importBackupInput.click(); // Trigger hidden file input
+                importBackupInput.click(); 
             });
 
             importBackupInput.addEventListener('change', (event) => {
@@ -1467,7 +1500,7 @@
                     };
                     reader.readAsText(file);
                 }
-                importBackupInput.value = ''; // Reset file input
+                importBackupInput.value = ''; 
             });
 
 
