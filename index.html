@@ -25,6 +25,8 @@
             border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
         .modal-content-profile { max-width: 950px; } 
+        .modal-content-small { max-width: 500px; } /* For import confirmation */
+
 
         .close-button {
             color: #9ca3af; float: right; font-size: 28px; font-weight: bold;
@@ -58,45 +60,61 @@
             border-left: 4px solid #fbbf24; /* amber-400 */
             padding-left: 1rem;
         }
-        /* Toggle Switch CSS */
         .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 50px; 
-            height: 28px; 
+            position: relative; display: inline-block; width: 50px; height: 28px; 
         }
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 28px; 
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #ccc; transition: .4s; border-radius: 28px; 
         }
         .slider:before {
+            position: absolute; content: ""; height: 20px; width: 20px;  
+            left: 4px; bottom: 4px; background-color: white;
+            transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #22c55e; }
+        input:checked + .slider:before { transform: translateX(22px); }
+        
+        #inlineRealtimeGraphContainer {
+            background-color: #fff; 
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); 
+            margin-top: 1.5rem; 
+        }
+        #liveEventLoggingSection fieldset {
+            border: none; padding: 0; margin:0;
+        }
+        #liveEventLoggingSection legend {
+            font-size: 1.125rem; font-weight: 500; color: #4b5563; 
+            margin-bottom: 0.75rem; text-align: center;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 220px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 8px;
             position: absolute;
-            content: "";
-            height: 20px; 
-            width: 20px;  
-            left: 4px;    
-            bottom: 4px;  
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
+            z-index: 1;
+            bottom: 125%; /* Position above the button */
+            left: 50%;
+            margin-left: -110px; /* Use half of the width to center the tooltip */
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.75rem; /* text-xs */
+            line-height: 1.25;
         }
-        input:checked + .slider {
-            background-color: #22c55e; /* green-500 */
-        }
-        input:checked + .slider:before {
-            transform: translateX(22px); 
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
         }
     </style>
 </head>
@@ -119,35 +137,80 @@
                     <button id="resetTimerButton" class="px-4 py-2 w-24 sm:w-28 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500" disabled>リセット</button>
                 </div>
                 <div class="text-center mb-4">
-                     <button id="logTimeButton" class="px-4 py-2 border border-amber-500 rounded-md shadow-sm text-sm font-medium text-amber-600 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-400">現在の時間をハゼ/総時間等へ</button>
+                     <button id="logTimeButton" class="px-4 py-2 border border-amber-500 rounded-md shadow-sm text-sm font-medium text-amber-600 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-400">タイマー時間をイベントに記録</button>
                 </div>
-                <div class="flex items-center justify-center space-x-2 mt-4">
-                    <label for="voiceCountdownToggle" class="text-sm font-medium text-gray-700">音声秒読み (1分ごと):</label>
+                <div class="flex items-center justify-center space-x-2 mt-4 mb-2">
+                    <label for="voiceCountdownToggle" class="text-sm font-medium text-gray-700">音声秒読み:</label>
                     <label class="toggle-switch">
                         <input type="checkbox" id="voiceCountdownToggle">
                         <span class="slider"></span>
                     </label>
                 </div>
+                 <div class="flex items-center justify-center space-x-2">
+                    <label for="realtimeGraphToggle" class="text-sm font-medium text-gray-700">リアルタイムグラフ表示:</label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="realtimeGraphToggle">
+                        <span class="slider"></span>
+                    </label>
+                </div>
 
-                <div id="liveTempLoggingSection" class="mt-6 pt-4 border-t border-gray-200 hidden">
-                    <h3 class="text-lg font-medium text-gray-800 mb-2 text-center">現在の温度を記録 (タイマー作動中)</h3>
-                    <p class="text-center text-sm text-gray-600 mb-3">現在の経過時間: <span id="currentTimerMinuteDisplay" class="font-semibold">0</span> 分目</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-                        <div>
-                            <label for="liveChamberTemp" class="block text-sm font-medium text-gray-700">庫内温度 (°C)</label>
-                            <input type="number" id="liveChamberTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 180">
+                <div id="inlineRealtimeGraphContainer" class="hidden">
+                    <h3 class="text-lg font-semibold text-amber-600 mb-3 text-center">リアルタイム焙煎プロファイル</h3>
+                    <div class="h-64 md:h-80"> <canvas id="realtimeRoastChart"></canvas>
+                    </div>
+                    <p id="realtimeGraphMessage" class="text-xs text-gray-500 text-center mt-2">タイマー開始待ち...</p>
+                </div>
+
+                <div id="liveLoggingArea" class="mt-6 pt-4 border-t border-gray-200 hidden">
+                    <div id="liveTempLoggingSection" > 
+                        <h3 class="text-lg font-medium text-gray-800 mb-2 text-center">現在の温度を記録</h3>
+                        <p class="text-center text-sm text-gray-600 mb-3">現在の経過時間: <span id="currentTimerMinuteDisplay" class="font-semibold">0</span> 分目</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                            <div>
+                                <label for="liveChamberTemp" class="block text-sm font-medium text-gray-700">庫内温度 (°C)</label>
+                                <input type="number" id="liveChamberTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 180">
+                            </div>
+                            <div>
+                                <label for="liveBeanTemp" class="block text-sm font-medium text-gray-700">豆温度 (°C)</label>
+                                <input type="number" id="liveBeanTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 170">
+                            </div>
                         </div>
-                        <div>
-                            <label for="liveBeanTemp" class="block text-sm font-medium text-gray-700">豆温度 (°C)</label>
-                            <input type="number" id="liveBeanTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 170">
+                        <div class="mt-3 text-center">
+                            <button id="logLiveTempButton" class="px-4 py-2 border border-teal-500 rounded-md shadow-sm text-sm font-medium text-teal-600 hover:bg-teal-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-400">この時点の温度を記録フォームへ</button>
                         </div>
                     </div>
-                    <div class="mt-3 text-center">
-                        <button id="logLiveTempButton" class="px-4 py-2 border border-teal-500 rounded-md shadow-sm text-sm font-medium text-teal-600 hover:bg-teal-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-400">この時点の温度を記録フォームへ</button>
-                    </div>
+                    <fieldset id="liveEventLoggingSection" class="mt-6 pt-4 border-t border-gray-200">
+                        <legend>主要な焙煎イベントを記録</legend>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                            <div>
+                                <label for="turningPointTime" class="block text-sm font-medium text-gray-700">TP 時間 (分:秒)</label>
+                                <input type="text" id="turningPointTime" name="turningPointTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 01:30">
+                            </div>
+                            <div>
+                                <label for="turningPointTemp" class="block text-sm font-medium text-gray-700">TP 温度 (°C)</label>
+                                <input type="number" id="turningPointTemp" name="turningPointTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 85.5">
+                            </div>
+                            <div>
+                                <label for="firstCrackTime" class="block text-sm font-medium text-gray-700">1ハゼ開始 (分:秒)</label>
+                                <input type="text" id="firstCrackTime" name="firstCrackTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 08:30">
+                            </div>
+                            <div>
+                                <label for="secondCrackTime" class="block text-sm font-medium text-gray-700">2ハゼ開始 (分:秒)</label>
+                                <input type="text" id="secondCrackTime" name="secondCrackTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 11:15">
+                            </div>
+                             <div>
+                                <label for="totalRoastTime" class="block text-sm font-medium text-gray-700">総焙煎時間 (分:秒) <span class="text-red-500">*</span></label>
+                                <input type="text" id="totalRoastTime" name="totalRoastTime" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 12:45">
+                            </div>
+                            <div>
+                                <label for="endOfRoastTemp" class="block text-sm font-medium text-gray-700">煎り止め温度 (°C)</label>
+                                <input type="number" id="endOfRoastTemp" name="endOfRoastTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 205.0">
+                            </div>
+                        </div>
+                    </fieldset>
                 </div>
             </section>
-
+            
             <section id="roastFormSection" class="mb-8 p-6 bg-white rounded-lg shadow-md">
                 <h2 id="formTitle" class="text-2xl font-semibold mb-6 text-amber-600">新しい焙煎を記録</h2>
                 <form id="roastForm" class="space-y-6">
@@ -195,34 +258,8 @@
                     </div>
                     <p id="weightLoss" class="text-sm text-gray-600 -mt-4 md:col-span-2"></p>
                     
-                    <fieldset class="pt-4 border-t border-gray-200">
-                        <legend class="text-lg font-medium text-gray-900 mb-2">主要な焙煎イベント</legend>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                            <div>
-                                <label for="turningPointTime" class="block text-sm font-medium text-gray-700">TP 時間 (分:秒)</label>
-                                <input type="text" id="turningPointTime" name="turningPointTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 01:30">
-                            </div>
-                            <div>
-                                <label for="turningPointTemp" class="block text-sm font-medium text-gray-700">TP 温度 (°C)</label>
-                                <input type="number" id="turningPointTemp" name="turningPointTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 85.5">
-                            </div>
-                            <div>
-                                <label for="firstCrackTime" class="block text-sm font-medium text-gray-700">1ハゼ開始 (分:秒)</label>
-                                <input type="text" id="firstCrackTime" name="firstCrackTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 08:30">
-                            </div>
-                            <div>
-                                <label for="secondCrackTime" class="block text-sm font-medium text-gray-700">2ハゼ開始 (分:秒)</label>
-                                <input type="text" id="secondCrackTime" name="secondCrackTime" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 11:15">
-                            </div>
-                             <div>
-                                <label for="totalRoastTime" class="block text-sm font-medium text-gray-700">総焙煎時間 (分:秒) <span class="text-red-500">*</span></label>
-                                <input type="text" id="totalRoastTime" name="totalRoastTime" required class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 12:45">
-                            </div>
-                            <div>
-                                <label for="endOfRoastTemp" class="block text-sm font-medium text-gray-700">煎り止め温度 (°C)</label>
-                                <input type="number" id="endOfRoastTemp" name="endOfRoastTemp" step="0.1" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="例: 205.0">
-                            </div>
-                        </div>
+                    <fieldset id="mainFormEventFields" class="pt-4 border-t border-gray-200 hidden">
+                        <legend class="text-lg font-medium text-gray-900 mb-2 sr-only">主要な焙煎イベント（フォーム内）</legend> 
                     </fieldset>
 
                     <div class="space-y-4 pt-4 border-t border-gray-200">
@@ -267,10 +304,27 @@
 
             <section id="roastLogSection">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                    <h2 class="text-2xl font-semibold text-amber-600">焙煎記録一覧</h2>
-                    <div class="flex space-x-2">
-                        <button id="exportAllButton" class="px-4 py-2 border border-blue-500 rounded-md shadow-sm text-sm font-medium text-blue-600 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400">全件エクスポート (CSV)</button>
-                        <button id="deleteAllButton" class="px-4 py-2 border border-red-500 rounded-md shadow-sm text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-400">全件削除</button>
+                    <div>
+                        <h2 class="text-2xl font-semibold text-amber-600 mb-2 sm:mb-0">焙煎記録一覧</h2>
+                        <div class="flex items-center space-x-2">
+                            <input type="text" id="searchInput" class="px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="豆の名前で検索...">
+                            <button id="searchButton" class="px-4 py-2 border border-amber-500 rounded-md shadow-sm text-sm font-medium text-amber-600 hover:bg-amber-50">検索</button>
+                            <button id="clearSearchButton" class="px-4 py-2 border border-gray-400 rounded-md shadow-sm text-sm font-medium text-gray-600 hover:bg-gray-100">クリア</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-3 sm:mt-0">
+                        <div class="tooltip">
+                            <button id="exportBackupButton" class="w-full sm:w-auto px-4 py-2 border border-purple-500 rounded-md shadow-sm text-sm font-medium text-purple-600 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-400">全データバックアップ</button>
+                            <span class="tooltiptext">全記録を復元可能な形式で保存します。PC移行や万一のデータ消失に備え、定期的な保存を推奨します。</span>
+                        </div>
+                        <div class="tooltip">
+                             <input type="file" id="importBackupInput" class="hidden" accept=".json">
+                             <button id="importBackupButton" class="w-full sm:w-auto px-4 py-2 border border-purple-500 rounded-md shadow-sm text-sm font-medium text-purple-600 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-400">バックアップから復元</button>
+                            <span class="tooltiptext">以前にバックアップしたファイルから全記録を復元します。現在の記録は上書きされるか選択できます。</span>
+                        </div>
+                        <button id="exportFilteredButton" class="w-full sm:w-auto px-4 py-2 border border-green-500 rounded-md shadow-sm text-sm font-medium text-green-600 hover:bg-green-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-400">表示結果をCSV出力</button>
+                        <button id="exportAllButton" class="w-full sm:w-auto px-4 py-2 border border-blue-500 rounded-md shadow-sm text-sm font-medium text-blue-600 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400">全件CSV出力</button>
+                        <button id="deleteAllButton" class="w-full sm:w-auto px-4 py-2 border border-red-500 rounded-md shadow-sm text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-400">全件削除</button>
                     </div>
                 </div>
                 <div id="roastLog" class="space-y-4">
@@ -285,9 +339,19 @@
     </div>
 
     <div id="confirmModal" class="modal">
-        <div class="modal-content">
-            <span class="close-button" id="closeConfirmModalButton">&times;</span>
+        <div class="modal-content modal-content-small"> <span class="close-button" id="closeConfirmModalButton">&times;</span>
             <p id="confirmModalMessage" class="text-lg mb-6"></p>
+            <div id="importOptions" class="hidden mb-4 space-y-2">
+                 <p class="text-sm text-gray-600">インポート方法を選択してください:</p>
+                <label class="flex items-center space-x-2">
+                    <input type="radio" name="importMode" value="append" class="form-radio text-amber-600" checked>
+                    <span>現在の記録に追加する</span>
+                </label>
+                <label class="flex items-center space-x-2">
+                    <input type="radio" name="importMode" value="overwrite" class="form-radio text-amber-600">
+                    <span>現在の記録を全て上書きする (注意！)</span>
+                </label>
+            </div>
             <div class="flex justify-end space-x-3">
                 <button id="cancelConfirmButton" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500">キャンセル</button>
                 <button id="confirmActionButton" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">実行</button>
@@ -338,7 +402,15 @@
             const roastLog = document.getElementById('roastLog');
             const clearFormButton = document.getElementById('clearFormButton');
             const deleteAllButton = document.getElementById('deleteAllButton');
-            const exportAllButton = document.getElementById('exportAllButton');
+            const exportAllButton = document.getElementById('exportAllButton'); // CSV All
+            const exportFilteredButton = document.getElementById('exportFilteredButton'); 
+            const exportBackupButton = document.getElementById('exportBackupButton'); // JSON Backup
+            const importBackupInput = document.getElementById('importBackupInput'); // File input for JSON import
+            const importBackupButton = document.getElementById('importBackupButton'); // Button to trigger file input
+
+            const searchInput = document.getElementById('searchInput'); 
+            const searchButton = document.getElementById('searchButton'); 
+            const clearSearchButton = document.getElementById('clearSearchButton'); 
             const currentYearSpan = document.getElementById('currentYear');
             const greenBeanWeightInput = document.getElementById('greenBeanWeight');
             const roastedBeanWeightInput = document.getElementById('roastedBeanWeight');
@@ -346,6 +418,9 @@
             const chargingTemperatureInput = document.getElementById('chargingTemperature');
             const turningPointTimeInput = document.getElementById('turningPointTime');
             const turningPointTempInput = document.getElementById('turningPointTemp');
+            const firstCrackTimeInput = document.getElementById('firstCrackTime'); 
+            const secondCrackTimeInput = document.getElementById('secondCrackTime'); 
+            const totalRoastTimeInput = document.getElementById('totalRoastTime'); 
             const endOfRoastTempInput = document.getElementById('endOfRoastTemp');
 
 
@@ -355,12 +430,19 @@
             const pauseTimerButton = document.getElementById('pauseTimerButton');
             const resetTimerButton = document.getElementById('resetTimerButton');
             const logTimeButton = document.getElementById('logTimeButton');
-            const liveTempLoggingSection = document.getElementById('liveTempLoggingSection');
+            const liveLoggingArea = document.getElementById('liveLoggingArea'); 
+            const liveTempLoggingSection = document.getElementById('liveTempLoggingSection'); 
+            const liveEventLoggingSection = document.getElementById('liveEventLoggingSection'); 
             const currentTimerMinuteDisplay = document.getElementById('currentTimerMinuteDisplay');
             const liveChamberTempInput = document.getElementById('liveChamberTemp');
             const liveBeanTempInput = document.getElementById('liveBeanTemp');
             const logLiveTempButton = document.getElementById('logLiveTempButton');
             const voiceCountdownToggle = document.getElementById('voiceCountdownToggle'); 
+            const realtimeGraphToggle = document.getElementById('realtimeGraphToggle'); 
+            const inlineRealtimeGraphContainer = document.getElementById('inlineRealtimeGraphContainer'); 
+            const realtimeGraphMessage = document.getElementById('realtimeGraphMessage'); 
+            let realtimeRoastChart = null; 
+
 
             const chamberTempLogInput = document.getElementById('chamberTempLog'); 
             const beanTempLogInput = document.getElementById('beanTempLog');
@@ -373,10 +455,12 @@
             const confirmModal = document.getElementById('confirmModal');
             const closeConfirmModalButton = document.getElementById('closeConfirmModalButton');
             const confirmModalMessage = document.getElementById('confirmModalMessage');
+            const importOptionsDiv = document.getElementById('importOptions'); // For import mode
             const cancelConfirmButton = document.getElementById('cancelConfirmButton');
             const confirmActionButton = document.getElementById('confirmActionButton');
             let currentAction = null;
             let currentItemId = null;
+            let fileToImport = null; // For storing the file to import
 
             const profileModal = document.getElementById('profileModal'); 
             const closeProfileModalButton = document.getElementById('closeProfileModalButton'); 
@@ -387,6 +471,7 @@
             const copyProfileJsonButton = document.getElementById('copyProfileJsonButton'); 
             let roastProfileChart = null; 
             let currentProfileDataForCopy = null; 
+            let currentFilter = ''; 
 
 
             currentYearSpan.textContent = new Date().getFullYear();
@@ -406,7 +491,7 @@
                 synth.onvoiceschanged = populateVoices;
             }
 
-            function speak(text, rate = 1.2) { // Added rate parameter
+            function speak(text, rate = 1.2) { 
                 if (!voiceCountdownToggle.checked || !synth) {
                     return;
                 }
@@ -418,7 +503,7 @@
                     utterance.voice = voices[0]; 
                 }
                 utterance.pitch = 1;
-                utterance.rate = rate; // Use provided rate
+                utterance.rate = rate; 
                 synth.speak(utterance);
             }
 
@@ -472,6 +557,89 @@
                 return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
             }
 
+            function initRealtimeChart() {
+                if (realtimeRoastChart) {
+                    realtimeRoastChart.destroy();
+                }
+                const ctx = document.getElementById('realtimeRoastChart').getContext('2d');
+                realtimeRoastChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [], 
+                        datasets: [
+                            {
+                                label: '庫内温度 (°C)', data: [], yAxisID: 'yTemp',
+                                borderColor: 'rgba(239, 68, 68, 1)', backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                                tension: 0.2, fill: false, pointRadius: 3,
+                            },
+                            {
+                                label: '豆温度 (°C)', data: [], yAxisID: 'yTemp',
+                                borderColor: 'rgba(59, 130, 246, 1)', backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                                tension: 0.2, fill: false, pointRadius: 3,
+                            },
+                            {
+                                label: '豆ROR (°C/分)', data: [], yAxisID: 'yROR',
+                                borderColor: 'rgba(16, 185, 129, 1)', backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                tension: 0.2, fill: false, borderDash: [5, 5], pointRadius: 3,
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            x: { title: { display: true, text: '焙煎時間 (経過分)' } },
+                            yTemp: { type: 'linear', position: 'left', title: { display: true, text: '温度 (°C)' }, beginAtZero: false },
+                            yROR: { type: 'linear', position: 'right', title: { display: true, text: 'ROR (°C/分)' }, beginAtZero: false, grid: { drawOnChartArea: false }, suggestedMin: 0 }
+                        },
+                        plugins: { legend: { position: 'bottom' }, annotation: { annotations: {} } } 
+                    }
+                });
+                realtimeGraphMessage.textContent = "タイマー開始でグラフが更新されます。";
+            }
+
+            function updateRealtimeChart() {
+                if (!realtimeRoastChart || !realtimeGraphToggle.checked) return;
+
+                const chamberTemps = (chamberTempLogInput.value || "").split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+                const beanTemps = (beanTempLogInput.value || "").split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+                const rorLog = calculateBeanROR(beanTempLogInput.value);
+                const rorValues = rorLog ? rorLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
+
+                const maxLen = Math.max(chamberTemps.length, beanTemps.length);
+                const labels = Array.from({ length: maxLen }, (_, i) => `${i}`); 
+
+                realtimeRoastChart.data.labels = labels;
+                realtimeRoastChart.data.datasets[0].data = chamberTemps;
+                realtimeRoastChart.data.datasets[1].data = beanTemps;
+                realtimeRoastChart.data.datasets[2].data = [null, ...rorValues]; 
+
+                const annotations = {};
+                const tpTime = turningPointTimeInput.value; 
+                const tpTemp = parseFloat(turningPointTempInput.value); 
+                if (tpTime && !isNaN(tpTemp)) {
+                    annotations.tp = { type: 'point', xValue: timeToSeconds(tpTime) / 60, yValue: tpTemp, backgroundColor: 'gold', radius: 7, label: { enabled: true, content: 'TP', position: 'start' } };
+                }
+                const fcTime = firstCrackTimeInput.value; 
+                 if (fcTime) {
+                    annotations.fc = { type: 'line', xMin: timeToSeconds(fcTime) / 60, xMax: timeToSeconds(fcTime) / 60, borderColor: 'orange', borderWidth: 2, borderDash: [5,5], label: { enabled: true, content: '1C', position: 'start' } };
+                }
+                
+                realtimeRoastChart.options.plugins.annotation.annotations = annotations;
+                realtimeRoastChart.update('none'); 
+                realtimeGraphMessage.textContent = `最終更新: ${formatTime(secondsElapsed)}`;
+            }
+
+            realtimeGraphToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    inlineRealtimeGraphContainer.classList.remove('hidden'); 
+                    initRealtimeChart(); 
+                    updateRealtimeChart(); 
+                } else {
+                    inlineRealtimeGraphContainer.classList.add('hidden'); 
+                }
+            });
+
+
             function updateTimerDisplay() {
                 timerDisplay.textContent = formatTime(secondsElapsed);
                 const currentMinute = Math.floor(secondsElapsed / 60);
@@ -482,22 +650,25 @@
                     
                     if (secondsInCurrentMinute === 50) { 
                         let count = 10;
-                        speak(String(count)); // Speak "10"
+                        speak(String(count)); 
                         if (countdownSpeechInterval) clearInterval(countdownSpeechInterval); 
                         countdownSpeechInterval = setInterval(() => {
                             count--;
                             if (count > 0) {
-                                speak(String(count)); // Speak "9", "8", ... "1"
+                                speak(String(count)); 
                             } else if (count === 0) {
-                                // At 00 seconds of the *next* minute, secondsElapsed will be like 60, 120, 180...
-                                // So, the minute that has just *passed* is secondsElapsed / 60
                                 const minutePassed = secondsElapsed / 60;
-                                speak(`記録タイミングです。${minutePassed}分経過。`, 1.0); // Slightly slower for this message
+                                speak(`記録タイミングです。${minutePassed}分経過。`, 1.0); 
                                 clearInterval(countdownSpeechInterval);
                                 countdownSpeechInterval = null;
                             }
                         }, 1000);
                     }
+                }
+                if (realtimeGraphToggle.checked && timerInterval && !timerPaused ) {
+                     if (secondsElapsed % 2 === 0) { 
+                        updateRealtimeChart();
+                     }
                 }
             }
 
@@ -507,8 +678,18 @@
                     timerPaused = false;
                 } else { 
                     secondsElapsed = 0;
-                    chamberTempLogInput.value = '';
+                    chamberTempLogInput.value = ''; 
                     beanTempLogInput.value = '';
+                    turningPointTimeInput.value = '';
+                    turningPointTempInput.value = '';
+                    firstCrackTimeInput.value = '';
+                    secondCrackTimeInput.value = '';
+                    totalRoastTimeInput.value = ''; 
+                    endOfRoastTempInput.value = '';
+
+                    if (realtimeGraphToggle.checked) {
+                        initRealtimeChart();
+                    }
                 }
                 
                 timerInterval = setInterval(() => {
@@ -519,7 +700,7 @@
                 pauseTimerButton.disabled = false;
                 resetTimerButton.disabled = false;
                 startTimerButton.textContent = '開始';
-                liveTempLoggingSection.classList.remove('hidden');
+                liveLoggingArea.classList.remove('hidden'); 
                 updateTimerDisplay(); 
             });
 
@@ -533,7 +714,6 @@
                 startTimerButton.disabled = false; 
                 startTimerButton.textContent = '再開';
                 pauseTimerButton.disabled = true;
-                liveTempLoggingSection.classList.add('hidden');
             });
 
             resetTimerButton.addEventListener('click', () => {
@@ -548,20 +728,23 @@
                 startTimerButton.textContent = '開始';
                 pauseTimerButton.disabled = true;
                 resetTimerButton.disabled = true;
-                liveTempLoggingSection.classList.add('hidden');
+                liveLoggingArea.classList.add('hidden');
                 currentTimerMinuteDisplay.textContent = "1";
+                if (realtimeGraphToggle.checked) { 
+                    initRealtimeChart();
+                }
             });
             
             logTimeButton.addEventListener('click', () => {
                 const currentTime = formatTime(secondsElapsed);
                 if (!turningPointTimeInput.value) {
                     turningPointTimeInput.value = currentTime;
-                } else if (!document.getElementById('firstCrackTime').value) {
-                    document.getElementById('firstCrackTime').value = currentTime;
-                } else if (!document.getElementById('secondCrackTime').value) {
-                    document.getElementById('secondCrackTime').value = currentTime;
-                } else if (!document.getElementById('totalRoastTime').value) {
-                     document.getElementById('totalRoastTime').value = currentTime;
+                } else if (!firstCrackTimeInput.value) {
+                    firstCrackTimeInput.value = currentTime;
+                } else if (!secondCrackTimeInput.value) {
+                    secondCrackTimeInput.value = currentTime;
+                } else if (!totalRoastTimeInput.value) {
+                     totalRoastTimeInput.value = currentTime;
                 } else {
                     try {
                         navigator.clipboard.writeText(currentTime);
@@ -570,7 +753,13 @@
                          showToast("主要時間入力欄が全て埋まっています。", "error");
                     }
                 }
+                if (realtimeGraphToggle.checked) updateRealtimeChart(); 
             });
+
+            [turningPointTimeInput, turningPointTempInput, firstCrackTimeInput, secondCrackTimeInput, totalRoastTimeInput, endOfRoastTempInput].forEach(input => {
+                input.addEventListener('change', () => { if (realtimeGraphToggle.checked) updateRealtimeChart(); });
+            });
+
 
             logLiveTempButton.addEventListener('click', () => {
                 const chamberTemp = liveChamberTempInput.value.trim();
@@ -590,6 +779,7 @@
                 liveChamberTempInput.value = ''; 
                 liveBeanTempInput.value = '';
                 liveChamberTempInput.focus(); 
+                if (realtimeGraphToggle.checked) updateRealtimeChart(); 
             });
 
             function calculateAndUpdateWeightLoss() {
@@ -634,7 +824,7 @@
 
             function calculateBeanROR(beanTempLogStr) {
                 if (!beanTempLogStr) return null;
-                const beanTemps = beanTempLogStr.split(',').map(Number).filter(n => !isNaN(n));
+                const beanTemps = beanTempLogStr.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
                 if (beanTemps.length < 2) return null;
 
                 const rorValues = [];
@@ -656,14 +846,16 @@
                 document.getElementById('origin').value = roast.origin || '';
                 document.getElementById('greenBeanWeight').value = roast.greenBeanWeight || '';
                 document.getElementById('roastedBeanWeight').value = roast.roastedBeanWeight || '';
-                document.getElementById('turningPointTime').value = roast.turningPointTime || '';
-                document.getElementById('turningPointTemp').value = roast.turningPointTemp || '';
-                document.getElementById('firstCrackTime').value = roast.firstCrackTime || '';
-                document.getElementById('secondCrackTime').value = roast.secondCrackTime || '';
-                document.getElementById('totalRoastTime').value = roast.totalRoastTime;
-                document.getElementById('endOfRoastTemp').value = roast.endOfRoastTemp || '';
-                document.getElementById('chamberTempLog').value = roast.chamberTempLog || '';
-                document.getElementById('beanTempLog').value = roast.beanTempLog || '';
+                
+                turningPointTimeInput.value = roast.turningPointTime || '';
+                turningPointTempInput.value = roast.turningPointTemp || '';
+                firstCrackTimeInput.value = roast.firstCrackTime || '';
+                secondCrackTimeInput.value = roast.secondCrackTime || '';
+                totalRoastTimeInput.value = roast.totalRoastTime;
+                endOfRoastTempInput.value = roast.endOfRoastTemp || '';
+
+                chamberTempLogInput.value = roast.chamberTempLog || '';
+                beanTempLogInput.value = roast.beanTempLog || '';
                 document.getElementById('roastWeatherTemp').value = roast.weatherTemp || '';
                 document.getElementById('roastWeatherHumidity').value = roast.weatherHumidity || '';
                 document.getElementById('notes').value = roast.notes || '';
@@ -672,34 +864,54 @@
                 saveRecordButton.textContent = '更新を保存';
                 cancelEditButton.classList.remove('hidden');
                 roastFormSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                
+                liveLoggingArea.classList.remove('hidden');
+                if (realtimeGraphToggle.checked) updateRealtimeChart(); 
             }
 
             function exitEditMode() {
                 formTitle.textContent = '新しい焙煎を記録';
                 formTitle.classList.remove('editing-indicator');
                 editRoastIdInput.value = '';
-                roastForm.reset();
+                roastForm.reset(); 
                 weightLossDisplay.textContent = '';
                 weatherMessage.textContent = '';
                 saveRecordButton.textContent = '記録を保存';
                 cancelEditButton.classList.add('hidden');
+                if (!timerInterval) { 
+                    liveLoggingArea.classList.add('hidden');
+                }
+                if (realtimeGraphToggle.checked) initRealtimeChart(); 
             }
 
             cancelEditButton.addEventListener('click', exitEditMode);
 
 
-            function displayRoasts() {
-                const roasts = getRoasts();
+            function displayRoasts(filterText = '') { 
+                currentFilter = filterText.toLowerCase(); 
+                let roasts = getRoasts();
+                if (currentFilter) {
+                    roasts = roasts.filter(roast => roast.beanName.toLowerCase().includes(currentFilter));
+                }
+
                 roastLog.innerHTML = ''; 
 
                 if (roasts.length === 0) {
-                    roastLog.innerHTML = '<p class="text-gray-500 italic">まだ焙煎記録がありません。</p>';
-                    deleteAllButton.classList.add('hidden');
-                    exportAllButton.classList.add('hidden');
+                    roastLog.innerHTML = `<p class="text-gray-500 italic">${currentFilter ? '検索結果に一致する記録はありません。' : 'まだ焙煎記録がありません。'}</p>`;
+                    const allRoasts = getRoasts();
+                    deleteAllButton.classList.toggle('hidden', allRoasts.length === 0);
+                    exportAllButton.classList.toggle('hidden', allRoasts.length === 0);
+                    exportFilteredButton.classList.toggle('hidden', roasts.length === 0 && !currentFilter); 
+                    exportBackupButton.classList.toggle('hidden', allRoasts.length === 0); // Hide backup if no data
+                    importBackupButton.classList.remove('hidden'); // Always show import
                     return;
                 }
                 deleteAllButton.classList.remove('hidden');
                 exportAllButton.classList.remove('hidden');
+                exportFilteredButton.classList.remove('hidden');
+                exportBackupButton.classList.remove('hidden');
+                importBackupButton.classList.remove('hidden');
+
 
                 roasts.sort((a, b) => new Date(b.roastDate) - new Date(a.roastDate));
 
@@ -750,10 +962,10 @@
                         openConfirmModal(`「${roast.beanName}」の記録を削除しますか？`, 'deleteSingle', this.dataset.id);
                     });
                     roastElement.querySelector('.view-profile-button').addEventListener('click', function() { 
-                        openProfileModal(roasts.find(r => r.id === this.dataset.id));
+                        openProfileModal(getRoasts().find(r => r.id === this.dataset.id)); 
                     });
                     roastElement.querySelector('.edit-roast-button').addEventListener('click', function() {
-                        const roastToEdit = roasts.find(r => r.id === this.dataset.id);
+                        const roastToEdit = getRoasts().find(r => r.id === this.dataset.id); 
                         if (roastToEdit) enterEditMode(roastToEdit);
                     });
                 });
@@ -817,7 +1029,7 @@
                 }
                 
                 saveRoasts(roasts);
-                displayRoasts();
+                displayRoasts(currentFilter); 
                 exitEditMode(); 
                 
                 if (timerInterval || secondsElapsed > 0) {
@@ -838,10 +1050,23 @@
                 }
             });
             
-            function openConfirmModal(message, action, itemId = null) {
+            function openConfirmModal(message, action, itemId = null, data = null) { // Added data for import
                 confirmModalMessage.textContent = message; 
                 currentAction = action;
-                currentItemId = itemId;
+                currentItemId = itemId; // Used for single delete
+                fileToImport = data; // Used for import action
+
+                if (action === 'importJson') {
+                    importOptionsDiv.classList.remove('hidden');
+                    confirmActionButton.textContent = 'インポート実行';
+                    confirmActionButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    confirmActionButton.classList.add('bg-purple-600', 'hover:bg-purple-700');
+                } else {
+                    importOptionsDiv.classList.add('hidden');
+                    confirmActionButton.textContent = '実行';
+                    confirmActionButton.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+                    confirmActionButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                }
                 confirmModal.style.display = "block";
             }
             closeConfirmModalButton.onclick = () => confirmModal.style.display = "none";
@@ -856,8 +1081,37 @@
                 } else if (currentAction === 'deleteAll') {
                     saveRoasts([]);
                     showToast("全ての記録を削除しました。", "success");
+                } else if (currentAction === 'importJson' && fileToImport) {
+                    const importMode = document.querySelector('input[name="importMode"]:checked').value;
+                    try {
+                        const importedRoasts = JSON.parse(fileToImport);
+                        if (!Array.isArray(importedRoasts)) {
+                            throw new Error("ファイル形式が正しくありません。記録の配列ではありません。");
+                        }
+                        // Basic validation for each imported roast object (can be more thorough)
+                        const isValidRoast = importedRoasts.every(r => r && typeof r.beanName === 'string' && typeof r.roastDate === 'string');
+                        if (!isValidRoast) {
+                            throw new Error("ファイル内容が正しくありません。必須項目が不足している記録があります。");
+                        }
+
+                        let currentRoasts = getRoasts();
+                        if (importMode === 'overwrite') {
+                            currentRoasts = importedRoasts;
+                            showToast("データを上書きインポートしました。", "success");
+                        } else { // append
+                            // Avoid duplicates by checking ID, or simply append if IDs are unique (e.g., timestamp-based)
+                            // For simplicity, this example appends. For more robust import, add ID check.
+                            currentRoasts.push(...importedRoasts);
+                            showToast(`${importedRoasts.length}件の記録を追加インポートしました。`, "success");
+                        }
+                        saveRoasts(currentRoasts);
+                    } catch (err) {
+                        showToast(`インポートエラー: ${err.message}`, "error");
+                        console.error("Import error:", err);
+                    }
+                    fileToImport = null; // Clear after attempting import
                 }
-                displayRoasts();
+                displayRoasts(currentFilter); 
                 confirmModal.style.display = "none";
             }
             
@@ -1088,13 +1342,36 @@
                 if (event.target == profileModal) profileModal.style.display = "none"; 
             }
 
+            searchButton.addEventListener('click', () => {
+                displayRoasts(searchInput.value);
+            });
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    displayRoasts(searchInput.value);
+                }
+            });
+            clearSearchButton.addEventListener('click', () => {
+                searchInput.value = '';
+                displayRoasts(); 
+            });
 
-            exportAllButton.addEventListener('click', () => {
-                const roasts = getRoasts();
-                if (roasts.length === 0) {
-                    showToast("エクスポートする記録がありません。", "info");
+
+            exportFilteredButton.addEventListener('click', () => {
+                let roastsToExport = getRoasts();
+                if (currentFilter) {
+                    roastsToExport = roastsToExport.filter(roast => roast.beanName.toLowerCase().includes(currentFilter));
+                }
+
+                if (roastsToExport.length === 0) {
+                    showToast("エクスポートする記録がありません（現在の表示結果）。", "info");
                     return;
                 }
+                exportRoastsToCSV(roastsToExport, `coffee_roast_log_filtered_${new Date().toISOString().slice(0,10)}.csv`);
+                showToast("表示結果をCSV形式でエクスポートしました。", "success");
+            });
+
+
+            function exportRoastsToCSV(roastsArray, filename) { 
                 const headers = [
                     "ID", "豆の名前", "焙煎日", "焙煎度", "産地", "投入温度(°C)",
                     "TP時間", "TP温度(°C)", 
@@ -1112,7 +1389,7 @@
                     }
                     return stringField;
                 };
-                const csvRows = roasts.map(r => [
+                const csvRows = roastsArray.map(r => [
                     escapeCSV(r.id), escapeCSV(r.beanName), escapeCSV(r.roastDate), escapeCSV(r.roastLevel), escapeCSV(r.origin),
                     escapeCSV(r.chargingTemperature), 
                     escapeCSV(r.turningPointTime), escapeCSV(r.turningPointTemp), 
@@ -1129,15 +1406,70 @@
                 const link = document.createElement('a');
                 const url = URL.createObjectURL(blob);
                 link.setAttribute('href', url);
-                const today = new Date().toISOString().slice(0,10);
-                link.setAttribute('download', `coffee_roast_log_${today}.csv`);
+                link.setAttribute('download', filename);
                 link.style.visibility = 'hidden';
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
                 URL.revokeObjectURL(url);
+            }
+
+            exportAllButton.addEventListener('click', () => {
+                const roasts = getRoasts();
+                if (roasts.length === 0) {
+                    showToast("エクスポートする記録がありません。", "info");
+                    return;
+                }
+                exportRoastsToCSV(roasts, `coffee_roast_log_all_${new Date().toISOString().slice(0,10)}.csv`);
                 showToast("全データをCSV形式でエクスポートしました。", "success");
             });
+
+            // --- JSON Backup and Restore ---
+            exportBackupButton.addEventListener('click', () => {
+                const roasts = getRoasts();
+                if (roasts.length === 0) {
+                    showToast("バックアップする記録がありません。", "info");
+                    return;
+                }
+                const jsonData = JSON.stringify(roasts, null, 2); // Pretty print JSON
+                const blob = new Blob([jsonData], { type: 'application/json;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                const today = new Date().toISOString().slice(0,10);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `coffee_roast_backup_${today}.json`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                showToast("全データをバックアップしました。", "success");
+            });
+
+            importBackupButton.addEventListener('click', () => {
+                importBackupInput.click(); // Trigger hidden file input
+            });
+
+            importBackupInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        openConfirmModal(
+                            `「${file.name}」からデータを復元しますか？`, 
+                            'importJson', 
+                            null, 
+                            e.target.result
+                        );
+                    };
+                    reader.onerror = () => {
+                        showToast("ファイルの読み込みに失敗しました。", "error");
+                    };
+                    reader.readAsText(file);
+                }
+                importBackupInput.value = ''; // Reset file input
+            });
+
 
             fetchWeatherButton.addEventListener('click', async () => {
                 if (!navigator.geolocation) {
@@ -1182,7 +1514,7 @@
                 }
             });
 
-            displayRoasts();
+            displayRoasts(); 
         });
     </script>
 </body>
