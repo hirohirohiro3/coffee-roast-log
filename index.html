@@ -410,7 +410,7 @@
     <script type="module">
         // Firebase SDK imports
         import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; // Added GoogleAuthProvider, signInWithPopup, signOut
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { 
             getFirestore, doc, setDoc, addDoc, deleteDoc, 
             onSnapshot, collection, query, orderBy, serverTimestamp, 
@@ -426,7 +426,7 @@
         let userId = null;
         let roastsCollectionRef = null;
         let unsubscribeRoasts = null; 
-        const googleProvider = firebaseConfig ? new GoogleAuthProvider() : null; // Initialize GoogleAuthProvider if Firebase is configured
+        const googleProvider = firebaseConfig ? new GoogleAuthProvider() : null; 
 
         // DOM Elements for Auth UI
         const authSection = document.getElementById('authSection');
@@ -448,7 +448,7 @@
                 console.log("Firebase initialized successfully.");
 
                 onAuthStateChanged(auth, async (user) => {
-                    if (user) { // User is signed in (either Google or previously anonymous if linked)
+                    if (user) { 
                         userId = user.uid;
                         userIdDisplay.textContent = userId;
                         userNameP.textContent = user.displayName || "名無しさん";
@@ -460,27 +460,26 @@
                             userPhotoImg.classList.add('hidden');
                         }
                         userInfoDiv.classList.remove('hidden');
-                        userInfoDiv.classList.add('flex'); // Make user info visible
-                        googleLoginButton.classList.add('hidden'); // Hide login button
+                        userInfoDiv.classList.add('flex'); 
+                        googleLoginButton.classList.add('hidden'); 
 
                         console.log("User is signed in:", user);
                         roastsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/roast_records`);
                         listenToRoasts(); 
-                    } else { // User is signed out
+                    } else { 
                         userId = null;
                         userIdDisplay.textContent = "未認証";
                         userInfoDiv.classList.add('hidden');
                         userInfoDiv.classList.remove('flex');
-                        googleLoginButton.classList.remove('hidden'); // Show login button
+                        googleLoginButton.classList.remove('hidden'); 
 
                         console.log("User is signed out.");
                         if (unsubscribeRoasts) {
-                            unsubscribeRoasts(); // Stop listening to old data
+                            unsubscribeRoasts(); 
                             unsubscribeRoasts = null;
                         }
-                        localRoastsCache = []; // Clear local cache
-                        displayRoasts(); // Clear displayed roasts
-                        // No automatic anonymous sign-in here, user must click Google login
+                        localRoastsCache = []; 
+                        displayRoasts(); 
                     }
                 });
 
@@ -492,21 +491,21 @@
         } else {
             console.warn("Firebase configuration is missing. App will run in local-only mode (no cloud sync).");
             showToast("Firebase設定がありません。データはローカルにのみ保存されます。", "info", 5000);
-            googleLoginButton.disabled = true;
-            googleLoginButton.textContent = "Firebase未設定";
-            googleLoginButton.classList.add('opacity-50', 'cursor-not-allowed');
+            if(googleLoginButton) { // Ensure button exists before disabling
+                googleLoginButton.disabled = true;
+                googleLoginButton.textContent = "Firebase未設定";
+                googleLoginButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
         }
 
-        // Google Login
         if (googleLoginButton && auth && googleProvider) {
             googleLoginButton.addEventListener('click', () => {
                 signInWithPopup(auth, googleProvider)
                     .then((result) => {
                         const credential = GoogleAuthProvider.credentialFromResult(result);
-                        const token = credential.accessToken;
-                        const user = result.user;
+                        const token = credential.accessToken; 
+                        const user = result.user; 
                         showToast(`${user.displayName || 'ユーザー'}としてログインしました。`, "success");
-                        // onAuthStateChanged will handle UI updates and data loading
                     })
                     .catch((error) => {
                         console.error("Google Login Error:", error);
@@ -515,12 +514,10 @@
             });
         }
 
-        // Logout
         if (logoutButton && auth) {
             logoutButton.addEventListener('click', () => {
                 signOut(auth).then(() => {
                     showToast("ログアウトしました。", "info");
-                    // onAuthStateChanged will handle UI updates
                 }).catch((error) => {
                     console.error("Logout Error:", error);
                     showToast(`ログアウトエラー: ${error.message}`, "error");
@@ -529,7 +526,6 @@
         }
 
 
-        // DOM Elements (rest of them) - Ensure all are correctly defined after this point
         const roastForm = document.getElementById('roastForm');
         const formTitle = document.getElementById('formTitle'); 
         const editRoastIdInput = document.getElementById('editRoastId'); 
@@ -560,7 +556,6 @@
         const endOfRoastTempInput = document.getElementById('endOfRoastTemp');
 
 
-        // Timer Elements
         const timerDisplay = document.getElementById('timerDisplay');
         const startTimerButton = document.getElementById('startTimerButton');
         const pauseTimerButton = document.getElementById('pauseTimerButton');
@@ -1762,10 +1757,10 @@
             } finally {
                 fetchWeatherButton.disabled = false;
             }
-        }); // Closing parenthesis for fetchWeatherButton event listener
+        }); // Closing fetchWeatherButton event listener
 
         displayRoasts(); 
-    }); // Closing parenthesis and curly brace for DOMContentLoaded event listener
+    // Closing DOMContentLoaded event listener
     </script>
 </body>
 </html>
