@@ -491,7 +491,7 @@
         } else {
             console.warn("Firebase configuration is missing. App will run in local-only mode (no cloud sync).");
             showToast("Firebase設定がありません。データはローカルにのみ保存されます。", "info", 5000);
-            if(googleLoginButton) { // Ensure button exists before disabling
+            if(googleLoginButton) { 
                 googleLoginButton.disabled = true;
                 googleLoginButton.textContent = "Firebase未設定";
                 googleLoginButton.classList.add('opacity-50', 'cursor-not-allowed');
@@ -1757,10 +1757,11 @@
             } finally {
                 fetchWeatherButton.disabled = false;
             }
-        }); // Closing fetchWeatherButton event listener
+        }); 
 
-        displayRoasts(); 
-    // Closing DOMContentLoaded event listener
+        displayRoasts(); // 最初に記録一覧を表示する関数呼び出し
+        }); // DOMContentLoadedイベントリスナーのコールバック関数を閉じる
     </script>
+    // ここに余分な }); や } が無いことを確認
 </body>
 </html>
