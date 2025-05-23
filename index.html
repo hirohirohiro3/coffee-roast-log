@@ -25,8 +25,7 @@
             border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
         .modal-content-profile { max-width: 950px; } 
-        .modal-content-small { max-width: 500px; } /* For import confirmation */
-
+        .modal-content-small { max-width: 500px; } 
 
         .close-button {
             color: #9ca3af; float: right; font-size: 28px; font-weight: bold;
@@ -120,8 +119,25 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
     <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-5xl">
-        <header class="mb-8 text-center">
-            <h1 class="text-3xl sm:text-4xl font-bold text-amber-700">コーヒー焙煎記録</h1>
+        <header class="mb-4 p-4 bg-white shadow-sm rounded-lg">
+            <div class="flex flex-col sm:flex-row justify-between items-center">
+                <h1 class="text-3xl sm:text-4xl font-bold text-amber-700 mb-2 sm:mb-0">コーヒー焙煎記録</h1>
+                <div id="authSection" class="text-sm">
+                    <div id="userInfo" class="hidden items-center space-x-2">
+                        <img id="userPhoto" src="" alt="User Photo" class="w-8 h-8 rounded-full">
+                        <div>
+                            <p id="userName" class="font-medium text-gray-700"></p>
+                            <p id="userEmail" class="text-xs text-gray-500"></p>
+                        </div>
+                        <button id="logoutButton" class="ml-2 px-3 py-1.5 text-xs border border-red-400 text-red-500 rounded hover:bg-red-50 transition-colors">ログアウト</button>
+                    </div>
+                    <button id="googleLoginButton" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center justify-center mx-auto sm:mx-0">
+                        <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path fill="#FFFFFF" d="M21.35,11.1H12.18V13.83H18.69C18.36,17.64 15.19,19.27 12.19,19.27C8.36,19.27 5,16.25 5,12C5,7.9 8.28,4.73 12.19,4.73C15.29,4.73 17.1,6.7 17.1,6.7L19,4.72C19,4.72 16.56,2 12.19,2C6.42,2 2.03,6.8 2.03,12C2.03,17.05 6.16,22 12.19,22C17.6,22 21.5,18.33 21.5,12.91C21.5,11.76 21.35,11.1 21.35,11.1V11.1Z"></path></svg>
+                        Googleアカウントでログイン
+                    </button>
+                </div>
+            </div>
+            <p class="text-xs text-gray-400 mt-1 text-center sm:text-right">ユーザーUID: <span id="userIdDisplay">未認証</span></p>
         </header>
 
         <main>
@@ -391,1164 +407,1365 @@
     
     <div id="toast-container" class="fixed bottom-5 right-5 z-[2001] space-y-2"></div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // DOM Elements
-            const roastForm = document.getElementById('roastForm');
-            const formTitle = document.getElementById('formTitle'); 
-            const editRoastIdInput = document.getElementById('editRoastId'); 
-            const saveRecordButton = document.getElementById('saveRecordButton'); 
-            const cancelEditButton = document.getElementById('cancelEditButton'); 
-            const roastLog = document.getElementById('roastLog');
-            const clearFormButton = document.getElementById('clearFormButton');
-            const deleteAllButton = document.getElementById('deleteAllButton');
-            const exportAllButton = document.getElementById('exportAllButton'); 
-            const exportFilteredButton = document.getElementById('exportFilteredButton'); 
-            const exportBackupButton = document.getElementById('exportBackupButton'); 
-            const importBackupInput = document.getElementById('importBackupInput'); 
-            const importBackupButton = document.getElementById('importBackupButton'); 
+    <script type="module">
+        // Firebase SDK imports
+        import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; // Added GoogleAuthProvider, signInWithPopup, signOut
+        import { 
+            getFirestore, doc, setDoc, addDoc, deleteDoc, 
+            onSnapshot, collection, query, orderBy, serverTimestamp, 
+            writeBatch, getDocs, Timestamp 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-            const searchInput = document.getElementById('searchInput'); 
-            const searchButton = document.getElementById('searchButton'); 
-            const clearSearchButton = document.getElementById('clearSearchButton'); 
-            const currentYearSpan = document.getElementById('currentYear');
-            const greenBeanWeightInput = document.getElementById('greenBeanWeight');
-            const roastedBeanWeightInput = document.getElementById('roastedBeanWeight');
-            const weightLossDisplay = document.getElementById('weightLoss');
-            const chargingTemperatureInput = document.getElementById('chargingTemperature');
-            const turningPointTimeInput = document.getElementById('turningPointTime');
-            const turningPointTempInput = document.getElementById('turningPointTemp');
-            const firstCrackTimeInput = document.getElementById('firstCrackTime'); 
-            const secondCrackTimeInput = document.getElementById('secondCrackTime'); 
-            const totalRoastTimeInput = document.getElementById('totalRoastTime'); 
-            const endOfRoastTempInput = document.getElementById('endOfRoastTemp');
+        // --- Firebase Initialization ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id-coffee-roast';
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let roastsCollectionRef = null;
+        let unsubscribeRoasts = null; 
+        const googleProvider = firebaseConfig ? new GoogleAuthProvider() : null; // Initialize GoogleAuthProvider if Firebase is configured
 
-
-            // Timer Elements
-            const timerDisplay = document.getElementById('timerDisplay');
-            const startTimerButton = document.getElementById('startTimerButton');
-            const pauseTimerButton = document.getElementById('pauseTimerButton');
-            const resetTimerButton = document.getElementById('resetTimerButton');
-            const logTimeButton = document.getElementById('logTimeButton');
-            const liveLoggingArea = document.getElementById('liveLoggingArea'); 
-            const liveTempLoggingSection = document.getElementById('liveTempLoggingSection'); 
-            const liveEventLoggingSection = document.getElementById('liveEventLoggingSection'); 
-            const currentTimerMinuteDisplay = document.getElementById('currentTimerMinuteDisplay');
-            const liveChamberTempInput = document.getElementById('liveChamberTemp');
-            const liveBeanTempInput = document.getElementById('liveBeanTemp');
-            const logLiveTempButton = document.getElementById('logLiveTempButton');
-            const voiceCountdownToggle = document.getElementById('voiceCountdownToggle'); 
-            const realtimeGraphToggle = document.getElementById('realtimeGraphToggle'); 
-            const inlineRealtimeGraphContainer = document.getElementById('inlineRealtimeGraphContainer'); 
-            const realtimeGraphMessage = document.getElementById('realtimeGraphMessage'); 
-            let realtimeRoastChart = null; 
+        // DOM Elements for Auth UI
+        const authSection = document.getElementById('authSection');
+        const userInfoDiv = document.getElementById('userInfo');
+        const userPhotoImg = document.getElementById('userPhoto');
+        const userNameP = document.getElementById('userName');
+        const userEmailP = document.getElementById('userEmail');
+        const googleLoginButton = document.getElementById('googleLoginButton');
+        const logoutButton = document.getElementById('logoutButton');
+        const userIdDisplay = document.getElementById('userIdDisplay');
 
 
-            const chamberTempLogInput = document.getElementById('chamberTempLog'); 
-            const beanTempLogInput = document.getElementById('beanTempLog');
+        if (firebaseConfig) {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                setLogLevel('debug'); 
+                console.log("Firebase initialized successfully.");
 
-            const fetchWeatherButton = document.getElementById('fetchWeatherButton');
-            const roastWeatherTempInput = document.getElementById('roastWeatherTemp');
-            const roastWeatherHumidityInput = document.getElementById('roastWeatherHumidity');
-            const weatherMessage = document.getElementById('weatherMessage');
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) { // User is signed in (either Google or previously anonymous if linked)
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        userNameP.textContent = user.displayName || "名無しさん";
+                        userEmailP.textContent = user.email || "";
+                        if(user.photoURL) {
+                            userPhotoImg.src = user.photoURL;
+                            userPhotoImg.classList.remove('hidden');
+                        } else {
+                            userPhotoImg.classList.add('hidden');
+                        }
+                        userInfoDiv.classList.remove('hidden');
+                        userInfoDiv.classList.add('flex'); // Make user info visible
+                        googleLoginButton.classList.add('hidden'); // Hide login button
 
-            const confirmModal = document.getElementById('confirmModal');
-            const closeConfirmModalButton = document.getElementById('closeConfirmModalButton');
-            const confirmModalMessage = document.getElementById('confirmModalMessage');
-            const importOptionsDiv = document.getElementById('importOptions'); 
-            const cancelConfirmButton = document.getElementById('cancelConfirmButton');
-            const confirmActionButton = document.getElementById('confirmActionButton');
-            let currentAction = null;
-            let currentItemId = null;
-            let fileToImport = null; 
+                        console.log("User is signed in:", user);
+                        roastsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/roast_records`);
+                        listenToRoasts(); 
+                    } else { // User is signed out
+                        userId = null;
+                        userIdDisplay.textContent = "未認証";
+                        userInfoDiv.classList.add('hidden');
+                        userInfoDiv.classList.remove('flex');
+                        googleLoginButton.classList.remove('hidden'); // Show login button
 
-            const profileModal = document.getElementById('profileModal'); 
-            const closeProfileModalButton = document.getElementById('closeProfileModalButton'); 
-            const profileModalTitle = document.getElementById('profileModalTitle'); 
-            const profileMessage = document.getElementById('profileMessage'); 
-            const profileDataTableBody = document.getElementById('profileDataTable').getElementsByTagName('tbody')[0]; 
-            const profileTableMessage = document.getElementById('profileTableMessage');
-            const copyProfileJsonButton = document.getElementById('copyProfileJsonButton'); 
-            let roastProfileChart = null; 
-            let currentProfileDataForCopy = null; 
-            let currentFilter = ''; 
-
-
-            currentYearSpan.textContent = new Date().getFullYear();
-
-            let timerInterval = null;
-            let secondsElapsed = 0;
-            let timerPaused = false;
-            let countdownSpeechInterval = null; 
-
-            const synth = window.speechSynthesis;
-            let voices = [];
-            function populateVoices() {
-                voices = synth.getVoices().filter(voice => voice.lang === 'ja-JP');
-                 if (voices.length === 0 && synth.getVoices().length > 0) { // Fallback if no ja-JP specific
-                    voices = synth.getVoices().filter(voice => voice.lang.startsWith('ja'));
-                }
-            }
-            
-            // Initial population attempt
-            populateVoices();
-            // If voices are not loaded yet, wait for onvoiceschanged
-            if (synth.onvoiceschanged !== undefined) {
-                synth.onvoiceschanged = populateVoices;
-            }
-
-
-            function speak(text, rate = 1.2) { 
-                if (!voiceCountdownToggle.checked || !synth) {
-                    return;
-                }
-                // If speaking, cancel before speaking new text to avoid overlap, especially for rapid countdowns
-                if (synth.speaking) {
-                    synth.cancel();
-                }
-                
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'ja-JP';
-                if (voices.length > 0) {
-                    utterance.voice = voices[0]; 
-                } else {
-                    // console.warn("No Japanese voice found for speech synthesis. Using default.");
-                }
-                utterance.pitch = 1;
-                utterance.rate = rate; 
-                
-                // Adding a small delay for Safari to handle rapid speak calls better
-                setTimeout(() => {
-                    synth.speak(utterance);
-                }, 50); // 50ms delay
-            }
-            
-            // Attempt to "unlock" audio on Safari with a silent utterance on user interaction
-            function unlockAudio() {
-                if (synth && !synth.speaking && !synth.pending) {
-                    const utterance = new SpeechSynthesisUtterance('');
-                    utterance.volume = 0; // Silent
-                    synth.speak(utterance);
-                }
-            }
-            voiceCountdownToggle.addEventListener('change', function() {
-                if (this.checked) {
-                    unlockAudio(); // Try to unlock audio when toggle is first enabled
-                    speak("音声秒読みオン", 1.0);
-                } else {
-                    if(countdownSpeechInterval) clearInterval(countdownSpeechInterval);
-                    synth.cancel(); // Stop any ongoing speech
-                    speak("音声秒読みオフ", 1.0);
-                }
-            });
-
-
-            function showToast(message, type = 'info', duration = 3000) {
-                const toastContainer = document.getElementById('toast-container');
-                 if (!toastContainer) { 
-                    const container = document.createElement('div');
-                    container.id = 'toast-container';
-                    container.className = 'fixed bottom-5 right-5 z-[2001] space-y-2';
-                    document.body.appendChild(container);
-                }
-                const toast = document.createElement('div');
-                toast.className = `p-3 rounded-md shadow-lg text-sm font-medium max-w-xs break-words ${
-                    type === 'success' ? 'bg-green-500 text-white' : 
-                    type === 'error' ? 'bg-red-500 text-white' : 
-                    'bg-gray-700 text-white'
-                }`;
-                toast.textContent = message;
-                document.getElementById('toast-container').appendChild(toast);
-
-                setTimeout(() => {
-                    toast.classList.add('opacity-0', 'transition-opacity', 'duration-500');
-                    setTimeout(() => {
-                        toast.remove();
-                    }, 500);
-                }, duration);
-            }
-
-            function timeToSeconds(timeStr) { 
-                if (!timeStr || typeof timeStr !== 'string') return 0;
-                const parts = timeStr.split(':');
-                if (parts.length !== 2) return 0;
-                const minutes = parseInt(parts[0], 10);
-                const seconds = parseInt(parts[1], 10);
-                if (isNaN(minutes) || isNaN(seconds)) return 0;
-                return (minutes * 60) + seconds;
-            }
-            
-            function secondsToTime(totalSeconds) {
-                if (isNaN(totalSeconds) || totalSeconds < 0) return ''; 
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = Math.floor(totalSeconds % 60); 
-                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            }
-
-
-            function formatTime(totalSeconds) { 
-                const minutes = Math.floor(totalSeconds / 60);
-                const seconds = totalSeconds % 60;
-                return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-            }
-
-            function initRealtimeChart() {
-                if (realtimeRoastChart) {
-                    realtimeRoastChart.destroy();
-                }
-                const ctx = document.getElementById('realtimeRoastChart').getContext('2d');
-                realtimeRoastChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: [], 
-                        datasets: [
-                            {
-                                label: '庫内温度 (°C)', data: [], yAxisID: 'yTemp',
-                                borderColor: 'rgba(239, 68, 68, 1)', backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                                tension: 0.2, fill: false, pointRadius: 3,
-                            },
-                            {
-                                label: '豆温度 (°C)', data: [], yAxisID: 'yTemp',
-                                borderColor: 'rgba(59, 130, 246, 1)', backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                                tension: 0.2, fill: false, pointRadius: 3,
-                            },
-                            {
-                                label: '豆ROR (°C/分)', data: [], yAxisID: 'yROR',
-                                borderColor: 'rgba(16, 185, 129, 1)', backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                                tension: 0.2, fill: false, borderDash: [5, 5], pointRadius: 3,
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true, maintainAspectRatio: false,
-                        scales: {
-                            x: { title: { display: true, text: '焙煎時間 (経過分)' } },
-                            yTemp: { type: 'linear', position: 'left', title: { display: true, text: '温度 (°C)' }, beginAtZero: false },
-                            yROR: { type: 'linear', position: 'right', title: { display: true, text: 'ROR (°C/分)' }, beginAtZero: false, grid: { drawOnChartArea: false }, suggestedMin: 0 }
-                        },
-                        plugins: { legend: { position: 'bottom' }, annotation: { annotations: {} } } 
+                        console.log("User is signed out.");
+                        if (unsubscribeRoasts) {
+                            unsubscribeRoasts(); // Stop listening to old data
+                            unsubscribeRoasts = null;
+                        }
+                        localRoastsCache = []; // Clear local cache
+                        displayRoasts(); // Clear displayed roasts
+                        // No automatic anonymous sign-in here, user must click Google login
                     }
                 });
-                realtimeGraphMessage.textContent = "タイマー開始でグラフが更新されます。";
+
+            } catch (e) {
+                console.error("Firebase initialization error:", e);
+                showToast("Firebaseの初期化に失敗しました。設定を確認してください。", "error", 5000);
+                document.getElementById('userIdDisplay').textContent = "Firebase初期化エラー";
             }
+        } else {
+            console.warn("Firebase configuration is missing. App will run in local-only mode (no cloud sync).");
+            showToast("Firebase設定がありません。データはローカルにのみ保存されます。", "info", 5000);
+            googleLoginButton.disabled = true;
+            googleLoginButton.textContent = "Firebase未設定";
+            googleLoginButton.classList.add('opacity-50', 'cursor-not-allowed');
+        }
 
-            function updateRealtimeChart() {
-                if (!realtimeRoastChart || !realtimeGraphToggle.checked) return;
+        // Google Login
+        if (googleLoginButton && auth && googleProvider) {
+            googleLoginButton.addEventListener('click', () => {
+                signInWithPopup(auth, googleProvider)
+                    .then((result) => {
+                        const credential = GoogleAuthProvider.credentialFromResult(result);
+                        const token = credential.accessToken;
+                        const user = result.user;
+                        showToast(`${user.displayName || 'ユーザー'}としてログインしました。`, "success");
+                        // onAuthStateChanged will handle UI updates and data loading
+                    })
+                    .catch((error) => {
+                        console.error("Google Login Error:", error);
+                        showToast(`Googleログインエラー: ${error.message}`, "error");
+                    });
+            });
+        }
 
-                const chamberTemps = (chamberTempLogInput.value || "").split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-                const beanTemps = (beanTempLogInput.value || "").split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-                const rorLog = calculateBeanROR(beanTempLogInput.value);
-                const rorValues = rorLog ? rorLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
+        // Logout
+        if (logoutButton && auth) {
+            logoutButton.addEventListener('click', () => {
+                signOut(auth).then(() => {
+                    showToast("ログアウトしました。", "info");
+                    // onAuthStateChanged will handle UI updates
+                }).catch((error) => {
+                    console.error("Logout Error:", error);
+                    showToast(`ログアウトエラー: ${error.message}`, "error");
+                });
+            });
+        }
 
-                const maxLen = Math.max(chamberTemps.length, beanTemps.length);
-                const labels = Array.from({ length: maxLen }, (_, i) => `${i}`); 
 
-                realtimeRoastChart.data.labels = labels;
-                realtimeRoastChart.data.datasets[0].data = chamberTemps;
-                realtimeRoastChart.data.datasets[1].data = beanTemps;
-                realtimeRoastChart.data.datasets[2].data = [null, ...rorValues]; 
+        // DOM Elements (rest of them) - Ensure all are correctly defined after this point
+        const roastForm = document.getElementById('roastForm');
+        const formTitle = document.getElementById('formTitle'); 
+        const editRoastIdInput = document.getElementById('editRoastId'); 
+        const saveRecordButton = document.getElementById('saveRecordButton'); 
+        const cancelEditButton = document.getElementById('cancelEditButton'); 
+        const roastLog = document.getElementById('roastLog');
+        const clearFormButton = document.getElementById('clearFormButton');
+        const deleteAllButton = document.getElementById('deleteAllButton');
+        const exportAllButton = document.getElementById('exportAllButton'); 
+        const exportFilteredButton = document.getElementById('exportFilteredButton'); 
+        const exportBackupButton = document.getElementById('exportBackupButton'); 
+        const importBackupInput = document.getElementById('importBackupInput'); 
+        const importBackupButton = document.getElementById('importBackupButton'); 
 
-                const annotations = {};
-                const tpTime = turningPointTimeInput.value; 
-                const tpTemp = parseFloat(turningPointTempInput.value); 
-                if (tpTime && !isNaN(tpTemp)) {
-                    annotations.tp = { type: 'point', xValue: timeToSeconds(tpTime) / 60, yValue: tpTemp, backgroundColor: 'gold', radius: 7, label: { enabled: true, content: 'TP', position: 'start' } };
+        const searchInput = document.getElementById('searchInput'); 
+        const searchButton = document.getElementById('searchButton'); 
+        const clearSearchButton = document.getElementById('clearSearchButton'); 
+        const currentYearSpan = document.getElementById('currentYear');
+        const greenBeanWeightInput = document.getElementById('greenBeanWeight');
+        const roastedBeanWeightInput = document.getElementById('roastedBeanWeight');
+        const weightLossDisplay = document.getElementById('weightLoss');
+        const chargingTemperatureInput = document.getElementById('chargingTemperature');
+        const turningPointTimeInput = document.getElementById('turningPointTime');
+        const turningPointTempInput = document.getElementById('turningPointTemp');
+        const firstCrackTimeInput = document.getElementById('firstCrackTime'); 
+        const secondCrackTimeInput = document.getElementById('secondCrackTime'); 
+        const totalRoastTimeInput = document.getElementById('totalRoastTime'); 
+        const endOfRoastTempInput = document.getElementById('endOfRoastTemp');
+
+
+        // Timer Elements
+        const timerDisplay = document.getElementById('timerDisplay');
+        const startTimerButton = document.getElementById('startTimerButton');
+        const pauseTimerButton = document.getElementById('pauseTimerButton');
+        const resetTimerButton = document.getElementById('resetTimerButton');
+        const logTimeButton = document.getElementById('logTimeButton');
+        const liveLoggingArea = document.getElementById('liveLoggingArea'); 
+        const liveTempLoggingSection = document.getElementById('liveTempLoggingSection'); 
+        const liveEventLoggingSection = document.getElementById('liveEventLoggingSection'); 
+        const currentTimerMinuteDisplay = document.getElementById('currentTimerMinuteDisplay');
+        const liveChamberTempInput = document.getElementById('liveChamberTemp');
+        const liveBeanTempInput = document.getElementById('liveBeanTemp');
+        const logLiveTempButton = document.getElementById('logLiveTempButton');
+        const voiceCountdownToggle = document.getElementById('voiceCountdownToggle'); 
+        const realtimeGraphToggle = document.getElementById('realtimeGraphToggle'); 
+        const inlineRealtimeGraphContainer = document.getElementById('inlineRealtimeGraphContainer'); 
+        const realtimeGraphMessage = document.getElementById('realtimeGraphMessage'); 
+        let realtimeRoastChart = null; 
+
+
+        const chamberTempLogInput = document.getElementById('chamberTempLog'); 
+        const beanTempLogInput = document.getElementById('beanTempLog');
+
+        const fetchWeatherButton = document.getElementById('fetchWeatherButton');
+        const roastWeatherTempInput = document.getElementById('roastWeatherTemp');
+        const roastWeatherHumidityInput = document.getElementById('roastWeatherHumidity');
+        const weatherMessage = document.getElementById('weatherMessage');
+
+        const confirmModal = document.getElementById('confirmModal');
+        const closeConfirmModalButton = document.getElementById('closeConfirmModalButton');
+        const confirmModalMessage = document.getElementById('confirmModalMessage');
+        const importOptionsDiv = document.getElementById('importOptions'); 
+        const cancelConfirmButton = document.getElementById('cancelConfirmButton');
+        const confirmActionButton = document.getElementById('confirmActionButton');
+        let currentAction = null;
+        let currentItemId = null;
+        let fileToImport = null; 
+
+        const profileModal = document.getElementById('profileModal'); 
+        const closeProfileModalButton = document.getElementById('closeProfileModalButton'); 
+        const profileModalTitle = document.getElementById('profileModalTitle'); 
+        const profileMessage = document.getElementById('profileMessage'); 
+        const profileDataTableBody = document.getElementById('profileDataTable').getElementsByTagName('tbody')[0]; 
+        const profileTableMessage = document.getElementById('profileTableMessage');
+        const copyProfileJsonButton = document.getElementById('copyProfileJsonButton'); 
+        let roastProfileChart = null; 
+        let currentProfileDataForCopy = null; 
+        let currentFilter = ''; 
+        let localRoastsCache = []; 
+
+
+        currentYearSpan.textContent = new Date().getFullYear();
+
+        let timerInterval = null;
+        let secondsElapsed = 0;
+        let timerPaused = false;
+        let countdownSpeechInterval = null; 
+
+        const synth = window.speechSynthesis;
+        let voices = [];
+        function populateVoices() {
+            voices = synth.getVoices().filter(voice => voice.lang === 'ja-JP');
+             if (voices.length === 0 && synth.getVoices().length > 0) { 
+                voices = synth.getVoices().filter(voice => voice.lang.startsWith('ja'));
+            }
+        }
+        
+        populateVoices();
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = populateVoices;
+        }
+
+
+        function speak(text, rate = 1.2) { 
+            if (!voiceCountdownToggle.checked || !synth) {
+                return;
+            }
+            if (synth.speaking) {
+                synth.cancel();
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'ja-JP';
+            if (voices.length > 0) {
+                utterance.voice = voices[0]; 
+            } 
+            utterance.pitch = 1;
+            utterance.rate = rate; 
+            
+            setTimeout(() => {
+                synth.speak(utterance);
+            }, 50); 
+        }
+        
+        function unlockAudio() {
+            if (synth && !synth.speaking && !synth.pending) {
+                const utterance = new SpeechSynthesisUtterance('');
+                utterance.volume = 0; 
+                synth.speak(utterance);
+            }
+        }
+        voiceCountdownToggle.addEventListener('change', function() {
+            if (this.checked) {
+                unlockAudio(); 
+                speak("音声秒読みオン", 1.0);
+            } else {
+                if(countdownSpeechInterval) clearInterval(countdownSpeechInterval);
+                synth.cancel(); 
+                speak("音声秒読みオフ", 1.0);
+            }
+        });
+
+
+        function showToast(message, type = 'info', duration = 3000) {
+            const toastContainer = document.getElementById('toast-container');
+             if (!toastContainer) { 
+                const container = document.createElement('div');
+                container.id = 'toast-container';
+                container.className = 'fixed bottom-5 right-5 z-[2001] space-y-2';
+                document.body.appendChild(container);
+            }
+            const toast = document.createElement('div');
+            toast.className = `p-3 rounded-md shadow-lg text-sm font-medium max-w-xs break-words ${
+                type === 'success' ? 'bg-green-500 text-white' : 
+                type === 'error' ? 'bg-red-500 text-white' : 
+                'bg-gray-700 text-white'
+            }`;
+            toast.textContent = message;
+            document.getElementById('toast-container').appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+                setTimeout(() => {
+                    toast.remove();
+                }, 500);
+            }, duration);
+        }
+
+        function timeToSeconds(timeStr) { 
+            if (!timeStr || typeof timeStr !== 'string') return 0;
+            const parts = timeStr.split(':');
+            if (parts.length !== 2) return 0;
+            const minutes = parseInt(parts[0], 10);
+            const seconds = parseInt(parts[1], 10);
+            if (isNaN(minutes) || isNaN(seconds)) return 0;
+            return (minutes * 60) + seconds;
+        }
+        
+        function secondsToTime(totalSeconds) {
+            if (isNaN(totalSeconds) || totalSeconds < 0) return ''; 
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = Math.floor(totalSeconds % 60); 
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+
+        function formatTime(totalSeconds) { 
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function initRealtimeChart() {
+            if (realtimeRoastChart) {
+                realtimeRoastChart.destroy();
+            }
+            const ctx = document.getElementById('realtimeRoastChart').getContext('2d');
+            realtimeRoastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [], 
+                    datasets: [
+                        {
+                            label: '庫内温度 (°C)', data: [], yAxisID: 'yTemp',
+                            borderColor: 'rgba(239, 68, 68, 1)', backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                            tension: 0.2, fill: false, pointRadius: 3,
+                        },
+                        {
+                            label: '豆温度 (°C)', data: [], yAxisID: 'yTemp',
+                            borderColor: 'rgba(59, 130, 246, 1)', backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            tension: 0.2, fill: false, pointRadius: 3,
+                        },
+                        {
+                            label: '豆ROR (°C/分)', data: [], yAxisID: 'yROR',
+                            borderColor: 'rgba(16, 185, 129, 1)', backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            tension: 0.2, fill: false, borderDash: [5, 5], pointRadius: 3,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: '焙煎時間 (経過分)' } },
+                        yTemp: { type: 'linear', position: 'left', title: { display: true, text: '温度 (°C)' }, beginAtZero: false },
+                        yROR: { type: 'linear', position: 'right', title: { display: true, text: 'ROR (°C/分)' }, beginAtZero: false, grid: { drawOnChartArea: false }, suggestedMin: 0 }
+                    },
+                    plugins: { legend: { position: 'bottom' }, annotation: { annotations: {} } } 
                 }
-                const fcTime = firstCrackTimeInput.value; 
-                 if (fcTime) {
-                    annotations.fc = { type: 'line', xMin: timeToSeconds(fcTime) / 60, xMax: timeToSeconds(fcTime) / 60, borderColor: 'orange', borderWidth: 2, borderDash: [5,5], label: { enabled: true, content: '1C', position: 'start' } };
-                }
+            });
+            realtimeGraphMessage.textContent = "タイマー開始でグラフが更新されます。";
+        }
+
+        function updateRealtimeChart() {
+            if (!realtimeRoastChart || !realtimeGraphToggle.checked) return;
+
+            const chamberTemps = (chamberTempLogInput.value || "").split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+            const beanTemps = (beanTempLogInput.value || "").split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+            const rorLog = calculateBeanROR(beanTempLogInput.value);
+            const rorValues = rorLog ? rorLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
+
+            const maxLen = Math.max(chamberTemps.length, beanTemps.length);
+            const labels = Array.from({ length: maxLen }, (_, i) => `${i}`); 
+
+            realtimeRoastChart.data.labels = labels;
+            realtimeRoastChart.data.datasets[0].data = chamberTemps;
+            realtimeRoastChart.data.datasets[1].data = beanTemps;
+            realtimeRoastChart.data.datasets[2].data = [null, ...rorValues]; 
+
+            const annotations = {};
+            const tpTime = turningPointTimeInput.value; 
+            const tpTemp = parseFloat(turningPointTempInput.value); 
+            if (tpTime && !isNaN(tpTemp)) {
+                annotations.tp = { type: 'point', xValue: timeToSeconds(tpTime) / 60, yValue: tpTemp, backgroundColor: 'gold', radius: 7, label: { enabled: true, content: 'TP', position: 'start' } };
+            }
+            const fcTime = firstCrackTimeInput.value; 
+             if (fcTime) {
+                annotations.fc = { type: 'line', xMin: timeToSeconds(fcTime) / 60, xMax: timeToSeconds(fcTime) / 60, borderColor: 'orange', borderWidth: 2, borderDash: [5,5], label: { enabled: true, content: '1C', position: 'start' } };
+            }
+            
+            realtimeRoastChart.options.plugins.annotation.annotations = annotations;
+            realtimeRoastChart.update('none'); 
+            realtimeGraphMessage.textContent = `最終更新: ${formatTime(secondsElapsed)}`;
+        }
+
+        realtimeGraphToggle.addEventListener('change', function() {
+            if (this.checked) {
+                inlineRealtimeGraphContainer.classList.remove('hidden'); 
+                initRealtimeChart(); 
+                updateRealtimeChart(); 
+            } else {
+                inlineRealtimeGraphContainer.classList.add('hidden'); 
+            }
+        });
+
+
+        function updateTimerDisplay() {
+            timerDisplay.textContent = formatTime(secondsElapsed);
+            const currentMinuteDisplayVal = Math.floor(secondsElapsed / 60) + 1;
+            currentTimerMinuteDisplay.textContent = currentMinuteDisplayVal;
+
+            if (voiceCountdownToggle.checked && timerInterval && !timerPaused) {
+                const secondsInCurrentMinute = secondsElapsed % 60;
                 
-                realtimeRoastChart.options.plugins.annotation.annotations = annotations;
-                realtimeRoastChart.update('none'); 
-                realtimeGraphMessage.textContent = `最終更新: ${formatTime(secondsElapsed)}`;
-            }
-
-            realtimeGraphToggle.addEventListener('change', function() {
-                if (this.checked) {
-                    inlineRealtimeGraphContainer.classList.remove('hidden'); 
-                    initRealtimeChart(); 
-                    updateRealtimeChart(); 
-                } else {
-                    inlineRealtimeGraphContainer.classList.add('hidden'); 
-                }
-            });
-
-
-            function updateTimerDisplay() {
-                timerDisplay.textContent = formatTime(secondsElapsed);
-                const currentMinuteDisplayVal = Math.floor(secondsElapsed / 60) + 1;
-                currentTimerMinuteDisplay.textContent = currentMinuteDisplayVal;
-
-                if (voiceCountdownToggle.checked && timerInterval && !timerPaused) {
-                    const secondsInCurrentMinute = secondsElapsed % 60;
-                    
-                    if (secondsInCurrentMinute === 50 && secondsElapsed >= 50) { // Ensure countdown doesn't start at 00:50 for the very first minute before 1:00
-                        let count = 10;
-                        speak(String(count)); 
-                        if (countdownSpeechInterval) clearInterval(countdownSpeechInterval); 
-                        countdownSpeechInterval = setInterval(() => {
-                            count--;
-                            if (count > 0) {
-                                speak(String(count)); 
-                            } else if (count === 0) {
-                                // Correctly get the minute that has just *passed* or is *about to complete*
-                                const minuteJustCompleted = Math.floor((secondsElapsed + 10) / 60) ; // +10 to get the minute mark it's counting down to
-                                speak(`記録タイミングです。${minuteJustCompleted}分経過。`, 1.0); 
-                                clearInterval(countdownSpeechInterval);
-                                countdownSpeechInterval = null;
-                            }
-                        }, 1000);
-                    }
-                }
-                if (realtimeGraphToggle.checked && timerInterval && !timerPaused ) {
-                     if (secondsElapsed % 2 === 0) { 
-                        updateRealtimeChart();
-                     }
+                if (secondsInCurrentMinute === 50 && secondsElapsed >= 50) { 
+                    let count = 10;
+                    speak(String(count)); 
+                    if (countdownSpeechInterval) clearInterval(countdownSpeechInterval); 
+                    countdownSpeechInterval = setInterval(() => {
+                        count--;
+                        if (count > 0) {
+                            speak(String(count)); 
+                        } else if (count === 0) {
+                            const minuteJustCompleted = Math.floor((secondsElapsed + 10) / 60) ; 
+                            speak(`記録タイミングです。${minuteJustCompleted}分経過。`, 1.0); 
+                            clearInterval(countdownSpeechInterval);
+                            countdownSpeechInterval = null;
+                        }
+                    }, 1000);
                 }
             }
+            if (realtimeGraphToggle.checked && timerInterval && !timerPaused ) {
+                 if (secondsElapsed % 2 === 0) { 
+                    updateRealtimeChart();
+                 }
+            }
+        }
 
-            startTimerButton.addEventListener('click', () => {
-                unlockAudio(); // Attempt to unlock audio on user interaction
-                if (timerInterval) return; 
-                if (timerPaused) { 
-                    timerPaused = false;
-                } else { 
-                    secondsElapsed = 0;
-                    chamberTempLogInput.value = ''; 
-                    beanTempLogInput.value = '';
-                    turningPointTimeInput.value = '';
-                    turningPointTempInput.value = '';
-                    firstCrackTimeInput.value = '';
-                    secondCrackTimeInput.value = '';
-                    totalRoastTimeInput.value = ''; 
-                    endOfRoastTempInput.value = '';
-
-                    if (realtimeGraphToggle.checked) {
-                        initRealtimeChart();
-                    }
-                }
-                
-                timerInterval = setInterval(() => {
-                    secondsElapsed++;
-                    updateTimerDisplay();
-                }, 1000);
-                startTimerButton.disabled = true;
-                pauseTimerButton.disabled = false;
-                resetTimerButton.disabled = false;
-                startTimerButton.textContent = '開始';
-                liveLoggingArea.classList.remove('hidden'); 
-                updateTimerDisplay(); 
-            });
-
-            pauseTimerButton.addEventListener('click', () => {
-                if (!timerInterval) return; 
-                clearInterval(timerInterval);
-                if (countdownSpeechInterval) clearInterval(countdownSpeechInterval); 
-                countdownSpeechInterval = null;
-                timerInterval = null;
-                timerPaused = true;
-                startTimerButton.disabled = false; 
-                startTimerButton.textContent = '再開';
-                pauseTimerButton.disabled = true;
-            });
-
-            resetTimerButton.addEventListener('click', () => {
-                clearInterval(timerInterval);
-                if (countdownSpeechInterval) clearInterval(countdownSpeechInterval);
-                countdownSpeechInterval = null;
-                timerInterval = null;
-                secondsElapsed = 0;
+        startTimerButton.addEventListener('click', () => {
+            unlockAudio(); 
+            if (timerInterval) return; 
+            if (timerPaused) { 
                 timerPaused = false;
-                updateTimerDisplay();
-                startTimerButton.disabled = false;
-                startTimerButton.textContent = '開始';
-                pauseTimerButton.disabled = true;
-                resetTimerButton.disabled = true;
-                liveLoggingArea.classList.add('hidden');
-                currentTimerMinuteDisplay.textContent = "1";
-                if (realtimeGraphToggle.checked) { 
+            } else { 
+                secondsElapsed = 0;
+                chamberTempLogInput.value = ''; 
+                beanTempLogInput.value = '';
+                turningPointTimeInput.value = '';
+                turningPointTempInput.value = '';
+                firstCrackTimeInput.value = '';
+                secondCrackTimeInput.value = '';
+                totalRoastTimeInput.value = ''; 
+                endOfRoastTempInput.value = '';
+
+                if (realtimeGraphToggle.checked) {
                     initRealtimeChart();
                 }
-            });
+            }
             
-            logTimeButton.addEventListener('click', () => {
-                const currentTime = formatTime(secondsElapsed);
-                if (!turningPointTimeInput.value) {
-                    turningPointTimeInput.value = currentTime;
-                } else if (!firstCrackTimeInput.value) {
-                    firstCrackTimeInput.value = currentTime;
-                } else if (!secondCrackTimeInput.value) {
-                    secondCrackTimeInput.value = currentTime;
-                } else if (!totalRoastTimeInput.value) {
-                     totalRoastTimeInput.value = currentTime;
-                } else {
-                    try {
-                        navigator.clipboard.writeText(currentTime);
-                        showToast("主要時間入力欄が全て埋まっています。時間をクリップボードにコピーしました。", "info");
-                    } catch (err) {
-                         showToast("主要時間入力欄が全て埋まっています。", "error");
-                    }
+            timerInterval = setInterval(() => {
+                secondsElapsed++;
+                updateTimerDisplay();
+            }, 1000);
+            startTimerButton.disabled = true;
+            pauseTimerButton.disabled = false;
+            resetTimerButton.disabled = false;
+            startTimerButton.textContent = '開始';
+            liveLoggingArea.classList.remove('hidden'); 
+            updateTimerDisplay(); 
+        });
+
+        pauseTimerButton.addEventListener('click', () => {
+            if (!timerInterval) return; 
+            clearInterval(timerInterval);
+            if (countdownSpeechInterval) clearInterval(countdownSpeechInterval); 
+            countdownSpeechInterval = null;
+            timerInterval = null;
+            timerPaused = true;
+            startTimerButton.disabled = false; 
+            startTimerButton.textContent = '再開';
+            pauseTimerButton.disabled = true;
+        });
+
+        resetTimerButton.addEventListener('click', () => {
+            clearInterval(timerInterval);
+            if (countdownSpeechInterval) clearInterval(countdownSpeechInterval);
+            countdownSpeechInterval = null;
+            timerInterval = null;
+            secondsElapsed = 0;
+            timerPaused = false;
+            updateTimerDisplay();
+            startTimerButton.disabled = false;
+            startTimerButton.textContent = '開始';
+            pauseTimerButton.disabled = true;
+            resetTimerButton.disabled = true;
+            liveLoggingArea.classList.add('hidden');
+            currentTimerMinuteDisplay.textContent = "1";
+            if (realtimeGraphToggle.checked) { 
+                initRealtimeChart();
+            }
+        });
+        
+        logTimeButton.addEventListener('click', () => {
+            const currentTime = formatTime(secondsElapsed);
+            if (!turningPointTimeInput.value) {
+                turningPointTimeInput.value = currentTime;
+            } else if (!firstCrackTimeInput.value) {
+                firstCrackTimeInput.value = currentTime;
+            } else if (!secondCrackTimeInput.value) {
+                secondCrackTimeInput.value = currentTime;
+            } else if (!totalRoastTimeInput.value) {
+                 totalRoastTimeInput.value = currentTime;
+            } else {
+                try {
+                    navigator.clipboard.writeText(currentTime);
+                    showToast("主要時間入力欄が全て埋まっています。時間をクリップボードにコピーしました。", "info");
+                } catch (err) {
+                     showToast("主要時間入力欄が全て埋まっています。", "error");
                 }
-                if (realtimeGraphToggle.checked) updateRealtimeChart(); 
-            });
+            }
+            if (realtimeGraphToggle.checked) updateRealtimeChart(); 
+        });
 
-            [turningPointTimeInput, turningPointTempInput, firstCrackTimeInput, secondCrackTimeInput, totalRoastTimeInput, endOfRoastTempInput].forEach(input => {
-                input.addEventListener('change', () => { if (realtimeGraphToggle.checked) updateRealtimeChart(); });
-            });
+        [turningPointTimeInput, turningPointTempInput, firstCrackTimeInput, secondCrackTimeInput, totalRoastTimeInput, endOfRoastTempInput].forEach(input => {
+            input.addEventListener('change', () => { if (realtimeGraphToggle.checked) updateRealtimeChart(); });
+        });
 
 
-            logLiveTempButton.addEventListener('click', () => {
-                const chamberTemp = liveChamberTempInput.value.trim();
-                const beanTemp = liveBeanTempInput.value.trim();
+        logLiveTempButton.addEventListener('click', () => {
+            const chamberTemp = liveChamberTempInput.value.trim();
+            const beanTemp = liveBeanTempInput.value.trim();
 
-                if (!chamberTemp && !beanTemp) {
-                    showToast("庫内温度または豆温度を入力してください。", "error");
-                    return;
-                }
-                if (chamberTemp) {
-                    chamberTempLogInput.value += (chamberTempLogInput.value ? ',' : '') + chamberTemp;
-                }
-                if (beanTemp) {
-                    beanTempLogInput.value += (beanTempLogInput.value ? ',' : '') + beanTemp;
-                }
-                showToast("温度を記録フォームに追加しました。", "success");
-                liveChamberTempInput.value = ''; 
-                liveBeanTempInput.value = '';
-                liveChamberTempInput.focus(); 
-                if (realtimeGraphToggle.checked) updateRealtimeChart(); 
-            });
+            if (!chamberTemp && !beanTemp) {
+                showToast("庫内温度または豆温度を入力してください。", "error");
+                return;
+            }
+            if (chamberTemp) {
+                chamberTempLogInput.value += (chamberTempLogInput.value ? ',' : '') + chamberTemp;
+            }
+            if (beanTemp) {
+                beanTempLogInput.value += (beanTempLogInput.value ? ',' : '') + beanTemp;
+            }
+            showToast("温度を記録フォームに追加しました。", "success");
+            liveChamberTempInput.value = ''; 
+            liveBeanTempInput.value = '';
+            liveChamberTempInput.focus(); 
+            if (realtimeGraphToggle.checked) updateRealtimeChart(); 
+        });
 
-            function calculateAndUpdateWeightLoss() {
-                const greenWeight = parseFloat(greenBeanWeightInput.value);
-                const roastedWeight = parseFloat(roastedBeanWeightInput.value);
-                if (!isNaN(greenWeight) && !isNaN(roastedWeight) && greenWeight > 0) {
-                    const loss = greenWeight - roastedWeight;
-                    const lossPercentage = (loss / greenWeight) * 100;
-                    if (lossPercentage >= 0 && lossPercentage <= 100) {
-                        weightLossDisplay.textContent = `重量減少: ${loss.toFixed(1)}g (${lossPercentage.toFixed(1)}%)`;
-                    } else if (roastedWeight > greenWeight) {
-                        weightLossDisplay.textContent = `焙煎後の重量が生豆の重量を超えています。`;
-                    } else {
-                        weightLossDisplay.textContent = '';
-                    }
+        function calculateAndUpdateWeightLoss() {
+            const greenWeight = parseFloat(greenBeanWeightInput.value);
+            const roastedWeight = parseFloat(roastedBeanWeightInput.value);
+            if (!isNaN(greenWeight) && !isNaN(roastedWeight) && greenWeight > 0) {
+                const loss = greenWeight - roastedWeight;
+                const lossPercentage = (loss / greenWeight) * 100;
+                if (lossPercentage >= 0 && lossPercentage <= 100) {
+                    weightLossDisplay.textContent = `重量減少: ${loss.toFixed(1)}g (${lossPercentage.toFixed(1)}%)`;
+                } else if (roastedWeight > greenWeight) {
+                    weightLossDisplay.textContent = `焙煎後の重量が生豆の重量を超えています。`;
                 } else {
                     weightLossDisplay.textContent = '';
                 }
-            }
-            greenBeanWeightInput.addEventListener('input', calculateAndUpdateWeightLoss);
-            roastedBeanWeightInput.addEventListener('input', calculateAndUpdateWeightLoss);
-
-            function getRoasts() {
-                return JSON.parse(localStorage.getItem('roasts_v2')) || [];
-            }
-
-            function saveRoasts(roasts) {
-                localStorage.setItem('roasts_v2', JSON.stringify(roasts));
-            }
-
-            function calculateDTR(firstCrackTimeStr, totalRoastTimeStr) {
-                const firstCrackSeconds = timeToSeconds(firstCrackTimeStr);
-                const totalRoastSeconds = timeToSeconds(totalRoastTimeStr);
-
-                if (firstCrackSeconds > 0 && totalRoastSeconds > 0 && firstCrackSeconds < totalRoastSeconds) {
-                    const developmentTimeSeconds = totalRoastSeconds - firstCrackSeconds;
-                    const dtrPercentage = (developmentTimeSeconds / totalRoastSeconds) * 100;
-                    return dtrPercentage.toFixed(1); 
-                }
-                return null; 
-            }
-
-            function calculateBeanROR(beanTempLogStr) {
-                if (!beanTempLogStr) return null;
-                const beanTemps = beanTempLogStr.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-                if (beanTemps.length < 2) return null;
-
-                const rorValues = [];
-                for (let i = 1; i < beanTemps.length; i++) {
-                    rorValues.push((beanTemps[i] - beanTemps[i-1]).toFixed(1));
-                }
-                return rorValues.join(','); 
-            }
-
-            function enterEditMode(roast) {
-                formTitle.textContent = `「${roast.beanName}」の記録を編集中`;
-                formTitle.classList.add('editing-indicator');
-                editRoastIdInput.value = roast.id;
-
-                document.getElementById('beanName').value = roast.beanName;
-                document.getElementById('roastDate').value = roast.roastDate;
-                document.getElementById('roastLevel').value = roast.roastLevel;
-                document.getElementById('chargingTemperature').value = roast.chargingTemperature || '';
-                document.getElementById('origin').value = roast.origin || '';
-                document.getElementById('greenBeanWeight').value = roast.greenBeanWeight || '';
-                document.getElementById('roastedBeanWeight').value = roast.roastedBeanWeight || '';
-                
-                turningPointTimeInput.value = roast.turningPointTime || '';
-                turningPointTempInput.value = roast.turningPointTemp || '';
-                firstCrackTimeInput.value = roast.firstCrackTime || '';
-                secondCrackTimeInput.value = roast.secondCrackTime || '';
-                totalRoastTimeInput.value = roast.totalRoastTime;
-                endOfRoastTempInput.value = roast.endOfRoastTemp || '';
-
-                chamberTempLogInput.value = roast.chamberTempLog || '';
-                beanTempLogInput.value = roast.beanTempLog || '';
-                document.getElementById('roastWeatherTemp').value = roast.weatherTemp || '';
-                document.getElementById('roastWeatherHumidity').value = roast.weatherHumidity || '';
-                document.getElementById('notes').value = roast.notes || '';
-                calculateAndUpdateWeightLoss(); 
-
-                saveRecordButton.textContent = '更新を保存';
-                cancelEditButton.classList.remove('hidden');
-                roastFormSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                
-                liveLoggingArea.classList.remove('hidden');
-                if (realtimeGraphToggle.checked) updateRealtimeChart(); 
-            }
-
-            function exitEditMode() {
-                formTitle.textContent = '新しい焙煎を記録';
-                formTitle.classList.remove('editing-indicator');
-                editRoastIdInput.value = '';
-                roastForm.reset(); 
+            } else {
                 weightLossDisplay.textContent = '';
-                weatherMessage.textContent = '';
-                saveRecordButton.textContent = '記録を保存';
-                cancelEditButton.classList.add('hidden');
-                if (!timerInterval) { 
-                    liveLoggingArea.classList.add('hidden');
-                }
-                if (realtimeGraphToggle.checked) initRealtimeChart(); 
             }
+        }
+        greenBeanWeightInput.addEventListener('input', calculateAndUpdateWeightLoss);
+        roastedBeanWeightInput.addEventListener('input', calculateAndUpdateWeightLoss);
 
-            cancelEditButton.addEventListener('click', exitEditMode);
-
-
-            function displayRoasts(filterText = '') { 
-                currentFilter = filterText.toLowerCase(); 
-                let roasts = getRoasts();
-                if (currentFilter) {
-                    roasts = roasts.filter(roast => roast.beanName.toLowerCase().includes(currentFilter));
-                }
-
-                roastLog.innerHTML = ''; 
-
-                if (roasts.length === 0) {
-                    roastLog.innerHTML = `<p class="text-gray-500 italic">${currentFilter ? '検索結果に一致する記録はありません。' : 'まだ焙煎記録がありません。'}</p>`;
-                    const allRoasts = getRoasts();
-                    deleteAllButton.classList.toggle('hidden', allRoasts.length === 0);
-                    exportAllButton.classList.toggle('hidden', allRoasts.length === 0);
-                    exportFilteredButton.classList.toggle('hidden', roasts.length === 0 && !currentFilter); 
-                    exportBackupButton.classList.toggle('hidden', allRoasts.length === 0); 
-                    importBackupButton.classList.remove('hidden'); 
-                    return;
-                }
-                deleteAllButton.classList.remove('hidden');
-                exportAllButton.classList.remove('hidden');
-                exportFilteredButton.classList.remove('hidden');
-                exportBackupButton.classList.remove('hidden');
-                importBackupButton.classList.remove('hidden');
-
-
-                roasts.sort((a, b) => new Date(b.roastDate) - new Date(a.roastDate));
-
-                roasts.forEach(roast => {
-                    const roastElement = document.createElement('div');
-                    roastElement.classList.add('p-5', 'bg-white', 'rounded-lg', 'shadow-sm', 'border', 'border-gray-200');
-                    
-                    let html = `
-                        <div class="flex flex-col sm:flex-row justify-between items-start mb-3">
-                            <div>
-                                <h3 class="text-xl font-semibold text-amber-700">${roast.beanName}</h3>
-                                <p class="text-sm text-gray-500">${roast.roastDate} / ${roast.roastLevel}</p>
-                            </div>
-                            <div class="flex space-x-1 sm:space-x-2 mt-2 sm:mt-0 flex-wrap">
-                                <button data-id="${roast.id}" class="edit-roast-button text-green-500 hover:text-green-700 text-sm font-medium flex items-center py-1 px-1.5 rounded hover:bg-green-50" title="この記録を編集">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square mr-1" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"/></svg>編集
-                                </button>
-                                <button data-id="${roast.id}" class="view-profile-button text-blue-500 hover:text-blue-700 text-sm font-medium flex items-center py-1 px-1.5 rounded hover:bg-blue-50" title="焙煎プロファイル詳細を表示">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg>詳細表示
-                                </button>
-                                <button data-id="${roast.id}" class="delete-roast-button text-red-500 hover:text-red-700 text-sm font-medium flex items-center py-1 px-1.5 rounded hover:bg-red-50">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>削除
-                                </button>
-                            </div>
-                        </div>`;
-                    
-                    html += `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 text-sm text-gray-700">`;
-                    if (roast.origin) html += `<p class="mb-1"><strong>産地:</strong> ${roast.origin}</p>`;
-                    if (roast.chargingTemperature) html += `<p class="mb-1"><strong>投入温度:</strong> ${roast.chargingTemperature} °C</p>`;
-                    if (roast.turningPointTime) html += `<p class="mb-1"><strong>TP:</strong> ${roast.turningPointTime} / ${roast.turningPointTemp || '-'}°C</p>`;
-                    if (roast.greenBeanWeight) html += `<p class="mb-1"><strong>生豆:</strong> ${roast.greenBeanWeight} g</p>`;
-                    if (roast.roastedBeanWeight) html += `<p class="mb-1"><strong>焙煎後:</strong> ${roast.roastedBeanWeight} g</p>`;
-                    if (roast.weightLossPercentage) html += `<p class="mb-1"><strong>減少率:</strong> ${roast.weightLossPercentage}%</p>`;
-                    if (roast.firstCrackTime) html += `<p class="mb-1"><strong>1ハゼ:</strong> ${roast.firstCrackTime}</p>`;
-                    if (roast.secondCrackTime) html += `<p class="mb-1"><strong>2ハゼ:</strong> ${roast.secondCrackTime}</p>`;
-                    html += `<p class="mb-1"><strong>総時間:</strong> ${roast.totalRoastTime}</p>`;
-                    if (roast.endOfRoastTemp) html += `<p class="mb-1"><strong>煎り止め:</strong> ${roast.endOfRoastTemp}°C</p>`;
-                    if (roast.dtr) html += `<p class="mb-1"><strong>DTR:</strong> ${roast.dtr}%</p>`;
-                    if (roast.weatherTemp) html += `<p class="mb-1"><strong>気候(温):</strong> ${roast.weatherTemp} °C</p>`;
-                    if (roast.weatherHumidity) html += `<p class="mb-1"><strong>気候(湿):</strong> ${roast.weatherHumidity} %</p>`;
-                    html += `</div>`;
-                    if (roast.notes) html += `<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-sm text-gray-700 whitespace-pre-wrap"><strong>メモ:</strong><br>${roast.notes}</p></div>`;
-                    
-                    roastElement.innerHTML = html;
-                    roastLog.appendChild(roastElement);
-
-                    roastElement.querySelector('.delete-roast-button').addEventListener('click', function() {
-                        openConfirmModal(`「${roast.beanName}」の記録を削除しますか？`, 'deleteSingle', this.dataset.id);
-                    });
-                    roastElement.querySelector('.view-profile-button').addEventListener('click', function() { 
-                        openProfileModal(getRoasts().find(r => r.id === this.dataset.id)); 
-                    });
-                    roastElement.querySelector('.edit-roast-button').addEventListener('click', function() {
-                        const roastToEdit = getRoasts().find(r => r.id === this.dataset.id); 
-                        if (roastToEdit) enterEditMode(roastToEdit);
-                    });
-                });
+        // --- Firestore Data Functions ---
+        function listenToRoasts() {
+            if (!roastsCollectionRef) {
+                console.warn("Firestore collection reference not available. Cannot listen to roasts.");
+                localRoastsCache = []; 
+                displayRoasts(currentFilter); 
+                return;
             }
+            if (unsubscribeRoasts) unsubscribeRoasts(); 
 
-            roastForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const formData = new FormData(roastForm);
-                const editingId = editRoastIdInput.value; 
-
-                const beanTempLog = formData.get('beanTempLog') || '';
-                const firstCrackTime = formData.get('firstCrackTime') || '';
-                const totalRoastTime = formData.get('totalRoastTime');
-
-                const roastData = {
-                    beanName: formData.get('beanName'),
-                    roastDate: formData.get('roastDate'),
-                    roastLevel: formData.get('roastLevel'),
-                    chargingTemperature: formData.get('chargingTemperature') || '', 
-                    origin: formData.get('origin') || '',
-                    greenBeanWeight: formData.get('greenBeanWeight') || '',
-                    roastedBeanWeight: formData.get('roastedBeanWeight') || '',
-                    turningPointTime: formData.get('turningPointTime') || '', 
-                    turningPointTemp: formData.get('turningPointTemp') || '', 
-                    firstCrackTime: firstCrackTime,
-                    secondCrackTime: formData.get('secondCrackTime') || '',
-                    totalRoastTime: totalRoastTime,
-                    endOfRoastTemp: formData.get('endOfRoastTemp') || '', 
-                    dtr: calculateDTR(firstCrackTime, totalRoastTime), 
-                    chamberTempLog: formData.get('chamberTempLog') || '', 
-                    beanTempLog: beanTempLog,
-                    rorLog: calculateBeanROR(beanTempLog), 
-                    weatherTemp: formData.get('roastWeatherTemp') || '', 
-                    weatherHumidity: formData.get('roastWeatherHumidity') || '',
-                    notes: formData.get('notes') || ''
-                };
-
-                const greenWeight = parseFloat(roastData.greenBeanWeight);
-                const roastedWeight = parseFloat(roastData.roastedBeanWeight);
-                if (!isNaN(greenWeight) && !isNaN(roastedWeight) && greenWeight > 0 && roastedWeight >= 0 && roastedWeight <= greenWeight) {
-                    roastData.weightLossPercentage = (((greenWeight - roastedWeight) / greenWeight) * 100).toFixed(1);
-                } else {
-                    roastData.weightLossPercentage = null;
-                }
-
-                let roasts = getRoasts();
-                if (editingId) { 
-                    const index = roasts.findIndex(r => r.id === editingId);
-                    if (index !== -1) {
-                        roasts[index] = { ...roasts[index], ...roastData, id: editingId }; 
-                        showToast("記録を更新しました。", "success");
-                    } else {
-                        showToast("更新エラー: 記録が見つかりません。", "error");
-                        exitEditMode(); 
-                        return;
+            const q = query(roastsCollectionRef, orderBy("createdAt", "desc")); 
+            
+            unsubscribeRoasts = onSnapshot(q, (querySnapshot) => {
+                const roasts = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.roastDate && data.roastDate.toDate) { 
+                        data.roastDate = data.roastDate.toDate().toISOString().split('T')[0]; 
                     }
+                    roasts.push({ id: doc.id, ...data });
+                });
+                localRoastsCache = roasts; 
+                displayRoasts(currentFilter); 
+                console.log("Roasts updated from Firestore:", roasts.length, "records");
+            }, (error) => {
+                console.error("Error listening to roasts:", error);
+                showToast(`データ読み込みエラー: ${error.message}`, "error");
+                localRoastsCache = [];
+                displayRoasts(currentFilter);
+            });
+        }
+
+
+        function calculateDTR(firstCrackTimeStr, totalRoastTimeStr) {
+            const firstCrackSeconds = timeToSeconds(firstCrackTimeStr);
+            const totalRoastSeconds = timeToSeconds(totalRoastTimeStr);
+
+            if (firstCrackSeconds > 0 && totalRoastSeconds > 0 && firstCrackSeconds < totalRoastSeconds) {
+                const developmentTimeSeconds = totalRoastSeconds - firstCrackSeconds;
+                const dtrPercentage = (developmentTimeSeconds / totalRoastSeconds) * 100;
+                return dtrPercentage.toFixed(1); 
+            }
+            return null; 
+        }
+
+        function calculateBeanROR(beanTempLogStr) {
+            if (!beanTempLogStr) return null;
+            const beanTemps = beanTempLogStr.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+            if (beanTemps.length < 2) return null;
+
+            const rorValues = [];
+            for (let i = 1; i < beanTemps.length; i++) {
+                rorValues.push((beanTemps[i] - beanTemps[i-1]).toFixed(1));
+            }
+            return rorValues.join(','); 
+        }
+
+        function enterEditMode(roast) {
+            if (!roast) {
+                showToast("編集する記録が見つかりません。", "error");
+                return;
+            }
+            formTitle.textContent = `「${roast.beanName}」の記録を編集中`;
+            formTitle.classList.add('editing-indicator');
+            editRoastIdInput.value = roast.id; 
+
+            document.getElementById('beanName').value = roast.beanName;
+            document.getElementById('roastDate').value = roast.roastDate; 
+            document.getElementById('roastLevel').value = roast.roastLevel;
+            document.getElementById('chargingTemperature').value = roast.chargingTemperature || '';
+            document.getElementById('origin').value = roast.origin || '';
+            document.getElementById('greenBeanWeight').value = roast.greenBeanWeight || '';
+            document.getElementById('roastedBeanWeight').value = roast.roastedBeanWeight || '';
+            
+            turningPointTimeInput.value = roast.turningPointTime || '';
+            turningPointTempInput.value = roast.turningPointTemp || '';
+            firstCrackTimeInput.value = roast.firstCrackTime || '';
+            secondCrackTimeInput.value = roast.secondCrackTime || '';
+            totalRoastTimeInput.value = roast.totalRoastTime;
+            endOfRoastTempInput.value = roast.endOfRoastTemp || '';
+
+            chamberTempLogInput.value = roast.chamberTempLog || '';
+            beanTempLogInput.value = roast.beanTempLog || '';
+            document.getElementById('roastWeatherTemp').value = roast.weatherTemp || '';
+            document.getElementById('roastWeatherHumidity').value = roast.weatherHumidity || '';
+            document.getElementById('notes').value = roast.notes || '';
+            calculateAndUpdateWeightLoss(); 
+
+            saveRecordButton.textContent = '更新を保存';
+            cancelEditButton.classList.remove('hidden');
+            roastFormSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            
+            liveLoggingArea.classList.remove('hidden');
+            if (realtimeGraphToggle.checked) updateRealtimeChart(); 
+        }
+
+        function exitEditMode() {
+            formTitle.textContent = '新しい焙煎を記録';
+            formTitle.classList.remove('editing-indicator');
+            editRoastIdInput.value = '';
+            roastForm.reset(); 
+            weightLossDisplay.textContent = '';
+            weatherMessage.textContent = '';
+            saveRecordButton.textContent = '記録を保存';
+            cancelEditButton.classList.add('hidden');
+            if (!timerInterval) { 
+                liveLoggingArea.classList.add('hidden');
+            }
+            if (realtimeGraphToggle.checked) initRealtimeChart(); 
+        }
+
+        cancelEditButton.addEventListener('click', exitEditMode);
+
+
+        function displayRoasts(filterText = '') { 
+            currentFilter = filterText.toLowerCase(); 
+            let roastsToDisplay = [...localRoastsCache]; 
+
+            if (currentFilter) {
+                roastsToDisplay = roastsToDisplay.filter(roast => roast.beanName.toLowerCase().includes(currentFilter));
+            }
+
+            roastLog.innerHTML = ''; 
+
+            if (roastsToDisplay.length === 0) {
+                roastLog.innerHTML = `<p class="text-gray-500 italic">${currentFilter ? '検索結果に一致する記録はありません。' : 'まだ焙煎記録がありません。データ同期中か、記録がありません。'}</p>`;
+            }
+            
+            deleteAllButton.classList.toggle('hidden', localRoastsCache.length === 0);
+            exportAllButton.classList.toggle('hidden', localRoastsCache.length === 0);
+            exportFilteredButton.classList.toggle('hidden', roastsToDisplay.length === 0);
+            exportBackupButton.classList.toggle('hidden', localRoastsCache.length === 0); 
+            importBackupButton.classList.remove('hidden'); 
+
+
+            roastsToDisplay.forEach(roast => {
+                const roastElement = document.createElement('div');
+                roastElement.classList.add('p-5', 'bg-white', 'rounded-lg', 'shadow-sm', 'border', 'border-gray-200');
+                
+                let html = `
+                    <div class="flex flex-col sm:flex-row justify-between items-start mb-3">
+                        <div>
+                            <h3 class="text-xl font-semibold text-amber-700">${roast.beanName}</h3>
+                            <p class="text-sm text-gray-500">${roast.roastDate} / ${roast.roastLevel}</p>
+                        </div>
+                        <div class="flex space-x-1 sm:space-x-2 mt-2 sm:mt-0 flex-wrap">
+                            <button data-id="${roast.id}" class="edit-roast-button text-green-500 hover:text-green-700 text-sm font-medium flex items-center py-1 px-1.5 rounded hover:bg-green-50" title="この記録を編集">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil-square mr-1" viewBox="0 0 16 16"><path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/><path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"/></svg>編集
+                            </button>
+                            <button data-id="${roast.id}" class="view-profile-button text-blue-500 hover:text-blue-700 text-sm font-medium flex items-center py-1 px-1.5 rounded hover:bg-blue-50" title="焙煎プロファイル詳細を表示">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" /><path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" /></svg>詳細表示
+                            </button>
+                            <button data-id="${roast.id}" class="delete-roast-button text-red-500 hover:text-red-700 text-sm font-medium flex items-center py-1 px-1.5 rounded hover:bg-red-50">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>削除
+                            </button>
+                        </div>
+                    </div>`;
+                
+                html += `<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 text-sm text-gray-700">`;
+                if (roast.origin) html += `<p class="mb-1"><strong>産地:</strong> ${roast.origin}</p>`;
+                if (roast.chargingTemperature) html += `<p class="mb-1"><strong>投入温度:</strong> ${roast.chargingTemperature} °C</p>`;
+                if (roast.turningPointTime) html += `<p class="mb-1"><strong>TP:</strong> ${roast.turningPointTime} / ${roast.turningPointTemp || '-'}°C</p>`;
+                if (roast.greenBeanWeight) html += `<p class="mb-1"><strong>生豆:</strong> ${roast.greenBeanWeight} g</p>`;
+                if (roast.roastedBeanWeight) html += `<p class="mb-1"><strong>焙煎後:</strong> ${roast.roastedBeanWeight} g</p>`;
+                if (roast.weightLossPercentage) html += `<p class="mb-1"><strong>減少率:</strong> ${roast.weightLossPercentage}%</p>`;
+                if (roast.firstCrackTime) html += `<p class="mb-1"><strong>1ハゼ:</strong> ${roast.firstCrackTime}</p>`;
+                if (roast.secondCrackTime) html += `<p class="mb-1"><strong>2ハゼ:</strong> ${roast.secondCrackTime}</p>`;
+                html += `<p class="mb-1"><strong>総時間:</strong> ${roast.totalRoastTime}</p>`;
+                if (roast.endOfRoastTemp) html += `<p class="mb-1"><strong>煎り止め:</strong> ${roast.endOfRoastTemp}°C</p>`;
+                if (roast.dtr) html += `<p class="mb-1"><strong>DTR:</strong> ${roast.dtr}%</p>`;
+                if (roast.weatherTemp) html += `<p class="mb-1"><strong>気候(温):</strong> ${roast.weatherTemp} °C</p>`;
+                if (roast.weatherHumidity) html += `<p class="mb-1"><strong>気候(湿):</strong> ${roast.weatherHumidity} %</p>`;
+                html += `</div>`;
+                if (roast.notes) html += `<div class="mt-3 pt-3 border-t border-gray-200"><p class="text-sm text-gray-700 whitespace-pre-wrap"><strong>メモ:</strong><br>${roast.notes}</p></div>`;
+                
+                roastElement.innerHTML = html;
+                roastLog.appendChild(roastElement);
+
+                roastElement.querySelector('.delete-roast-button').addEventListener('click', function() {
+                    openConfirmModal(`「${roast.beanName}」の記録を削除しますか？`, 'deleteSingle', this.dataset.id);
+                });
+                roastElement.querySelector('.view-profile-button').addEventListener('click', function() { 
+                    openProfileModal(localRoastsCache.find(r => r.id === this.dataset.id)); 
+                });
+                roastElement.querySelector('.edit-roast-button').addEventListener('click', function() {
+                    const roastToEdit = localRoastsCache.find(r => r.id === this.dataset.id); 
+                    if (roastToEdit) enterEditMode(roastToEdit);
+                });
+            });
+        }
+
+        roastForm.addEventListener('submit', async (e) => { 
+            e.preventDefault();
+            if (!userId || !roastsCollectionRef) {
+                showToast("ユーザー認証が完了していません。少し待ってから再試行してください。", "error");
+                return;
+            }
+
+            const formData = new FormData(roastForm);
+            const editingId = editRoastIdInput.value; 
+
+            const beanTempLog = formData.get('beanTempLog') || '';
+            const firstCrackTime = formData.get('firstCrackTime') || '';
+            const totalRoastTime = formData.get('totalRoastTime');
+
+            const roastData = {
+                beanName: formData.get('beanName'),
+                roastDate: formData.get('roastDate'), 
+                roastLevel: formData.get('roastLevel'),
+                chargingTemperature: formData.get('chargingTemperature') || '', 
+                origin: formData.get('origin') || '',
+                greenBeanWeight: formData.get('greenBeanWeight') || '',
+                roastedBeanWeight: formData.get('roastedBeanWeight') || '',
+                turningPointTime: formData.get('turningPointTime') || '', 
+                turningPointTemp: formData.get('turningPointTemp') || '', 
+                firstCrackTime: firstCrackTime,
+                secondCrackTime: formData.get('secondCrackTime') || '',
+                totalRoastTime: totalRoastTime,
+                endOfRoastTemp: formData.get('endOfRoastTemp') || '', 
+                dtr: calculateDTR(firstCrackTime, totalRoastTime), 
+                chamberTempLog: formData.get('chamberTempLog') || '', 
+                beanTempLog: beanTempLog,
+                rorLog: calculateBeanROR(beanTempLog), 
+                weatherTemp: formData.get('roastWeatherTemp') || '', 
+                weatherHumidity: formData.get('roastWeatherHumidity') || '',
+                notes: formData.get('notes') || ''
+            };
+
+            const greenWeight = parseFloat(roastData.greenBeanWeight);
+            const roastedWeight = parseFloat(roastData.roastedBeanWeight);
+            if (!isNaN(greenWeight) && !isNaN(roastedWeight) && greenWeight > 0 && roastedWeight >= 0 && roastedWeight <= greenWeight) {
+                roastData.weightLossPercentage = (((greenWeight - roastedWeight) / greenWeight) * 100).toFixed(1);
+            } else {
+                roastData.weightLossPercentage = null;
+            }
+
+            try {
+                if (editingId) { 
+                    const docRef = doc(roastsCollectionRef, editingId);
+                    const dataToSave = {...roastData};
+                    if (dataToSave.roastDate && typeof dataToSave.roastDate === 'string') {
+                        dataToSave.roastDate = Timestamp.fromDate(new Date(dataToSave.roastDate + "T00:00:00")); 
+                    }
+                    dataToSave.updatedAt = serverTimestamp();
+                    await setDoc(docRef, dataToSave, { merge: true }); 
+                    showToast("記録を更新しました。", "success");
                 } else { 
-                    roastData.id = Date.now().toString();
-                    roasts.push(roastData);
+                    const dataToSave = {...roastData};
+                     if (dataToSave.roastDate && typeof dataToSave.roastDate === 'string') {
+                        dataToSave.roastDate = Timestamp.fromDate(new Date(dataToSave.roastDate + "T00:00:00"));
+                    }
+                    dataToSave.createdAt = serverTimestamp();
+                    await addDoc(roastsCollectionRef, dataToSave);
                     showToast("焙煎記録を保存しました。", "success");
                 }
-                
-                saveRoasts(roasts);
-                displayRoasts(currentFilter); 
                 exitEditMode(); 
                 
                 if (timerInterval || secondsElapsed > 0) {
                     resetTimerButton.click();
                 }
-            });
-
-            clearFormButton.addEventListener('click', () => {
-                if (editRoastIdInput.value) {
-                    exitEditMode();
-                } else { 
-                    roastForm.reset();
-                    weightLossDisplay.textContent = '';
-                    weatherMessage.textContent = '';
-                }
-                if (timerInterval || secondsElapsed > 0) { 
-                    resetTimerButton.click();
-                }
-            });
-            
-            function openConfirmModal(message, action, itemId = null, data = null) { 
-                confirmModalMessage.textContent = message; 
-                currentAction = action;
-                currentItemId = itemId; 
-                fileToImport = data; 
-
-                if (action === 'importJson') {
-                    importOptionsDiv.classList.remove('hidden');
-                    confirmActionButton.textContent = 'インポート実行';
-                    confirmActionButton.classList.remove('bg-red-600', 'hover:bg-red-700');
-                    confirmActionButton.classList.add('bg-purple-600', 'hover:bg-purple-700');
-                } else {
-                    importOptionsDiv.classList.add('hidden');
-                    confirmActionButton.textContent = '実行';
-                    confirmActionButton.classList.remove('bg-purple-600', 'hover:bg-purple-700');
-                    confirmActionButton.classList.add('bg-red-600', 'hover:bg-red-700');
-                }
-                confirmModal.style.display = "block";
+            } catch (error) {
+                console.error("Error saving roast to Firestore:", error);
+                showToast(`保存エラー: ${error.message}`, "error");
             }
-            closeConfirmModalButton.onclick = () => confirmModal.style.display = "none";
-            cancelConfirmButton.onclick = () => confirmModal.style.display = "none";
-            
-            confirmActionButton.onclick = function() {
-                if (currentAction === 'deleteSingle' && currentItemId) {
-                    let roasts = getRoasts();
-                    roasts = roasts.filter(r => r.id !== currentItemId);
-                    saveRoasts(roasts);
-                    showToast("記録を削除しました。", "success");
-                } else if (currentAction === 'deleteAll') {
-                    saveRoasts([]);
-                    showToast("全ての記録を削除しました。", "success");
-                } else if (currentAction === 'importJson' && fileToImport) {
-                    const importMode = document.querySelector('input[name="importMode"]:checked').value;
-                    try {
-                        const importedRoasts = JSON.parse(fileToImport);
-                        if (!Array.isArray(importedRoasts)) {
-                            throw new Error("ファイル形式が正しくありません。記録の配列ではありません。");
-                        }
-                        const isValidRoast = importedRoasts.every(r => r && typeof r.beanName === 'string' && typeof r.roastDate === 'string');
-                        if (!isValidRoast) {
-                            throw new Error("ファイル内容が正しくありません。必須項目が不足している記録があります。");
-                        }
+        });
 
-                        let currentRoasts = getRoasts();
-                        if (importMode === 'overwrite') {
-                            currentRoasts = importedRoasts;
-                            showToast("データを上書きインポートしました。", "success");
-                        } else { 
-                            currentRoasts.push(...importedRoasts);
-                            showToast(`${importedRoasts.length}件の記録を追加インポートしました。`, "success");
-                        }
-                        saveRoasts(currentRoasts);
-                    } catch (err) {
-                        showToast(`インポートエラー: ${err.message}`, "error");
-                        console.error("Import error:", err);
-                    }
-                    fileToImport = null; 
-                }
-                displayRoasts(currentFilter); 
+        clearFormButton.addEventListener('click', () => {
+            if (editRoastIdInput.value) {
+                exitEditMode();
+            } else { 
+                roastForm.reset();
+                weightLossDisplay.textContent = '';
+                weatherMessage.textContent = '';
+            }
+            if (timerInterval || secondsElapsed > 0) { 
+                resetTimerButton.click();
+            }
+        });
+        
+        function openConfirmModal(message, action, itemId = null, data = null) { 
+            confirmModalMessage.textContent = message; 
+            currentAction = action;
+            currentItemId = itemId; 
+            fileToImport = data; 
+
+            if (action === 'importJson') {
+                importOptionsDiv.classList.remove('hidden');
+                confirmActionButton.textContent = 'インポート実行';
+                confirmActionButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                confirmActionButton.classList.add('bg-purple-600', 'hover:bg-purple-700');
+            } else {
+                importOptionsDiv.classList.add('hidden');
+                confirmActionButton.textContent = '実行';
+                confirmActionButton.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+                confirmActionButton.classList.add('bg-red-600', 'hover:bg-red-700');
+            }
+            confirmModal.style.display = "block";
+        }
+        closeConfirmModalButton.onclick = () => confirmModal.style.display = "none";
+        cancelConfirmButton.onclick = () => confirmModal.style.display = "none";
+        
+        confirmActionButton.onclick = async function() { 
+            if (!userId || !roastsCollectionRef) {
+                showToast("ユーザー認証が完了していません。処理を実行できません。", "error");
                 confirmModal.style.display = "none";
+                return;
             }
-            
-            deleteAllButton.addEventListener('click', () => {
-                const roasts = getRoasts();
-                if (roasts.length === 0) {
-                    showToast("削除する記録がありません。", "info");
-                    return;
-                }
-                openConfirmModal('本当にすべての記録を削除しますか？一度削除すると元に戻せません。', 'deleteAll');
-            });
 
-            closeProfileModalButton.onclick = () => profileModal.style.display = "none";
-
-            function openProfileModal(roastData) {
-                if (!roastData) {
-                    showToast("プロファイル表示のためのデータがありません。", "error");
-                    profileMessage.textContent = "データが見つかりません。";
-                    return;
+            if (currentAction === 'deleteSingle' && currentItemId) {
+                try {
+                    await deleteDoc(doc(roastsCollectionRef, currentItemId));
+                    showToast("記録を削除しました。", "success");
+                } catch (error) {
+                    console.error("Error deleting roast:", error);
+                    showToast(`削除エラー: ${error.message}`, "error");
                 }
-                currentProfileDataForCopy = roastData; 
-                profileModalTitle.textContent = `${roastData.beanName} - 焙煎プロファイル詳細`;
-                profileModal.style.display = "block";
-                profileMessage.textContent = "グラフを生成中...";
-                profileTableMessage.textContent = ""; 
-                
-                const chamberTemps = roastData.chamberTempLog ? roastData.chamberTempLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
-                const beanTemps = roastData.beanTempLog ? roastData.beanTempLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
-                const rorValues = roastData.rorLog ? roastData.rorLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
-                
-                const maxLenGraph = Math.max(chamberTemps.length, beanTemps.length);
-                
-                if (roastProfileChart) { roastProfileChart.destroy(); }
-                const ctx = document.getElementById('roastProfileChart').getContext('2d');
-
-                const annotations = {};
-                
-                if (roastData.turningPointTime && roastData.turningPointTemp) {
-                    const tpTimeSec = timeToSeconds(roastData.turningPointTime);
-                    const tpTemp = parseFloat(roastData.turningPointTemp);
-                    if (tpTimeSec >= 0 && !isNaN(tpTemp)) { 
-                        const tpMinuteMark = tpTimeSec / 60;
-                        annotations[`tpPoint`] = {
-                            type: 'point', xValue: tpMinuteMark, yValue: tpTemp,
-                            backgroundColor: 'rgba(251, 191, 36, 0.9)', borderColor: 'rgba(217, 119, 6, 1)', 
-                            radius: 7, borderWidth: 2, pointStyle: 'triangle', rotation: 180,
-                            label: {
-                                enabled: true, content: `TP ${roastData.turningPointTime} @ ${tpTemp}°C`,
-                                position: 'start', font: { size: 10, weight: 'bold' }, yAdjust: -15, backgroundColor: 'rgba(255,255,255,0.7)'
-                            }
-                        };
-                    }
+            } else if (currentAction === 'deleteAll') {
+                try {
+                    const q = query(roastsCollectionRef);
+                    const querySnapshot = await getDocs(q);
+                    const batch = writeBatch(db);
+                    querySnapshot.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                    showToast("全ての記録を削除しました。", "success");
+                } catch (error) {
+                    console.error("Error deleting all roasts:", error);
+                    showToast(`全件削除エラー: ${error.message}`, "error");
                 }
-
-                if (roastData.firstCrackTime) {
-                    const fcTimeSec = timeToSeconds(roastData.firstCrackTime);
-                    if (fcTimeSec > 0) {
-                        annotations[`fcLine`] = {
-                            type: 'line', xMin: fcTimeSec / 60, xMax: fcTimeSec / 60,
-                            borderColor: 'rgba(234, 179, 8, 0.8)', borderWidth: 2, borderDash: [6, 6],
-                            label: {
-                                enabled: true, content: `1C ${roastData.firstCrackTime}`, position: 'start',
-                                font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: -10, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
-                            }
-                        };
-                    }
-                }
-                if (roastData.secondCrackTime) {
-                    const scTimeSec = timeToSeconds(roastData.secondCrackTime);
-                     if (scTimeSec > 0) {
-                        annotations[`scLine`] = {
-                            type: 'line', xMin: scTimeSec / 60, xMax: scTimeSec / 60,
-                            borderColor: 'rgba(249, 115, 22, 0.8)', borderWidth: 2, borderDash: [6, 6],
-                            label: {
-                                enabled: true, content: `2C ${roastData.secondCrackTime}`, position: 'start',
-                                font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: -10, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
-                            }
-                        };
-                    }
-                }
-                if (roastData.totalRoastTime && roastData.endOfRoastTemp) {
-                    const eorTimeSec = timeToSeconds(roastData.totalRoastTime);
-                    const eorTemp = parseFloat(roastData.endOfRoastTemp);
-                    if (eorTimeSec > 0 && !isNaN(eorTemp)) {
-                        annotations[`eorLine`] = { 
-                            type: 'line', xMin: eorTimeSec / 60, xMax: eorTimeSec / 60,
-                            borderColor: 'rgba(22, 163, 74, 0.8)', borderWidth: 2,
-                            label: {
-                                enabled: true, content: `EOR ${roastData.totalRoastTime} @ ${eorTemp}°C`, position: 'end',
-                                font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: 15, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
-                            }
-                        };
-                         annotations[`eorPoint`] = { 
-                            type: 'point', xValue: eorTimeSec / 60, yValue: eorTemp,
-                            backgroundColor: 'rgba(22, 163, 74, 0.9)', borderColor: 'rgba(21, 128, 61, 1)', 
-                            radius: 7, borderWidth: 2, pointStyle: 'star'
-                        };
-                    }
-                }
-
-
-                if (maxLenGraph === 0 && rorValues.length === 0 && Object.keys(annotations).length === 0) {
-                    profileMessage.textContent = "表示する温度・ROR・イベントデータがありません。";
-                    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height); 
-                } else {
-                    const tempLabels = Array.from({length: maxLenGraph}, (_, i) => `${i}分`);
-                    const datasets = [];
-                    if (chamberTemps.length > 0) {
-                        datasets.push({
-                            label: '庫内温度 (°C)', data: chamberTemps, yAxisID: 'yTemp',
-                            borderColor: 'rgba(239, 68, 68, 1)', backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                            tension: 0.2, fill: false, pointRadius: 3, pointHoverRadius: 5,
-                        });
-                    }
-                    if (beanTemps.length > 0) {
-                        datasets.push({
-                            label: '豆温度 (°C)', data: beanTemps, yAxisID: 'yTemp',
-                            borderColor: 'rgba(59, 130, 246, 1)', backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                            tension: 0.2, fill: false, pointRadius: 3, pointHoverRadius: 5,
-                        });
-                    }
-                    if (rorValues.length > 0) {
-                        const alignedRorData = [null, ...rorValues]; 
-                        datasets.push({
-                            label: '豆ROR (°C/分)', data: alignedRorData, yAxisID: 'yROR',
-                            borderColor: 'rgba(16, 185, 129, 1)', backgroundColor: 'rgba(16, 185, 129, 0.2)',
-                            tension: 0.2, fill: false, type: 'line',
-                            borderDash: [5, 5], pointRadius: 3, pointHoverRadius: 5,
-                        });
+            } else if (currentAction === 'importJson' && fileToImport) {
+                const importMode = document.querySelector('input[name="importMode"]:checked').value;
+                try {
+                    const importedRoasts = JSON.parse(fileToImport);
+                    if (!Array.isArray(importedRoasts)) {
+                        throw new Error("ファイル形式が正しくありません。記録の配列ではありません。");
                     }
                     
-                    roastProfileChart = new Chart(ctx, {
-                        type: 'line', 
-                        data: { labels: tempLabels, datasets: datasets },
-                        options: {
-                            responsive: true, maintainAspectRatio: false, 
-                            interaction: { mode: 'index', intersect: false, },
-                            scales: {
-                                x: { title: { display: true, text: '焙煎時間 (経過分)', font: {size: 14} }, grid: {display: true} },
-                                yTemp: { 
-                                    type: 'linear', display: true, position: 'left', 
-                                    title: { display: true, text: '温度 (°C)', font: {size: 14} }, 
-                                    beginAtZero: false,
-                                    grid: { drawOnChartArea: true, color: 'rgba(200,200,200,0.3)'},
-                                    ticks: { padding: 5 }
-                                },
-                                yROR: { 
-                                    type: 'linear', display: rorValues.length > 0, position: 'right',
-                                    title: { display: true, text: 'ROR (°C/分)', font: {size: 14} },
-                                    beginAtZero: false, 
-                                    grid: { drawOnChartArea: false }, 
-                                    ticks: { padding: 5 },
-                                    suggestedMin: 0, 
-                                }
-                            },
-                            plugins: { 
-                                legend: { position: 'bottom', labels: {padding: 20, font: {size: 12}} }, 
-                                title: { display: true, text: '焙煎温度プロファイル', font: {size: 18}, padding: {top:10, bottom:20} },
-                                tooltip: {
-                                    mode: 'index', intersect: false,
-                                    titleFont: {size: 14}, bodyFont: {size: 12},
-                                    padding: 10, boxPadding: 4,
-                                    callbacks: {
-                                        label: function(context) {
-                                            let label = context.dataset.label || '';
-                                            if (label) { label += ': '; }
-                                            if (context.parsed.y !== null) {
-                                                label += context.parsed.y.toFixed(1);
-                                                if (context.dataset.yAxisID === 'yTemp') label += '°C';
-                                                if (context.dataset.yAxisID === 'yROR') label += '°C/分';
-                                            }
-                                            return label;
-                                        }
+                    const batch = writeBatch(db);
+                    let importedCount = 0;
+
+                    if (importMode === 'overwrite') {
+                        const existingDocsSnapshot = await getDocs(roastsCollectionRef);
+                        existingDocsSnapshot.forEach(doc => batch.delete(doc.ref));
+                        showToast("既存データを削除中...", "info");
+                    }
+
+                    importedRoasts.forEach(roast => {
+                        if (roast && typeof roast.beanName === 'string' && typeof roast.roastDate === 'string') {
+                            const newDocRef = doc(collection(db, `artifacts/${appId}/users/${userId}/roast_records`)); 
+                            const dataToImport = { ...roast };
+                            delete dataToImport.id; 
+                            dataToImport.createdAt = serverTimestamp(); 
+                            if (typeof dataToImport.roastDate === 'string') {
+                                const dateParts = dataToImport.roastDate.split('-');
+                                if (dateParts.length === 3) {
+                                    const year = parseInt(dateParts[0]);
+                                    const month = parseInt(dateParts[1]) -1; 
+                                    const day = parseInt(dateParts[2]);
+                                    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                                        dataToImport.roastDate = Timestamp.fromDate(new Date(year, month, day));
+                                    } else {
+                                        console.warn("Invalid date string in import, using current date:", dataToImport.roastDate);
+                                        dataToImport.roastDate = Timestamp.now();
                                     }
-                                },
-                                annotation: { 
-                                    annotations: annotations
+                                } else {
+                                     dataToImport.roastDate = Timestamp.now(); 
                                 }
                             }
+
+
+                            batch.set(newDocRef, dataToImport);
+                            importedCount++;
+                        } else {
+                            console.warn("Skipping invalid roast object during import:", roast);
                         }
                     });
-                    profileMessage.textContent = "グラフが表示されました。";
+                    
+                    await batch.commit();
+                    showToast(`${importedCount}件の記録をインポートしました。(${importMode === 'overwrite' ? '上書き' : '追加'})`, "success");
+
+                } catch (err) {
+                    showToast(`インポートエラー: ${err.message}`, "error");
+                    console.error("Import error:", err);
                 }
-
-                profileDataTableBody.innerHTML = ''; 
-                const maxTableLen = Math.max(
-                    (roastData.chamberTempLog || "").split(',').filter(Boolean).length,
-                    (roastData.beanTempLog || "").split(',').filter(Boolean).length,
-                    (roastData.rorLog || "").split(',').filter(Boolean).length + 1 
-                );
-
-                if (maxTableLen === 0) {
-                    profileTableMessage.textContent = "表示するログデータがありません。";
-                } else {
-                    for (let i = 0; i < maxTableLen; i++) {
-                        const row = profileDataTableBody.insertRow();
-                        const cellTime = row.insertCell();
-                        const cellChamber = row.insertCell();
-                        const cellBean = row.insertCell();
-                        const cellROR = row.insertCell();
-
-                        cellTime.textContent = `${i}分`;
-                        cellTime.classList.add('time-col');
-                        cellChamber.textContent = chamberTemps[i] !== undefined ? chamberTemps[i].toFixed(1) : '-';
-                        cellBean.textContent = beanTemps[i] !== undefined ? beanTemps[i].toFixed(1) : '-';
-                        cellROR.textContent = i > 0 && rorValues[i-1] !== undefined ? rorValues[i-1].toFixed(1) : '-';
-                    }
-                }
+                fileToImport = null; 
             }
+            confirmModal.style.display = "none";
+        }
+        
+        deleteAllButton.addEventListener('click', () => {
+            if (localRoastsCache.length === 0) {
+                showToast("削除する記録がありません。", "info");
+                return;
+            }
+            openConfirmModal('本当にすべての記録を削除しますか？一度削除すると元に戻せません。', 'deleteAll');
+        });
+
+        closeProfileModalButton.onclick = () => profileModal.style.display = "none";
+
+        function openProfileModal(roastData) {
+            if (!roastData) {
+                showToast("プロファイル表示のためのデータがありません。", "error");
+                profileMessage.textContent = "データが見つかりません。";
+                return;
+            }
+            currentProfileDataForCopy = roastData; 
+            profileModalTitle.textContent = `${roastData.beanName} - 焙煎プロファイル詳細`;
+            profileModal.style.display = "block";
+            profileMessage.textContent = "グラフを生成中...";
+            profileTableMessage.textContent = ""; 
             
-            copyProfileJsonButton.addEventListener('click', () => {
-                if (currentProfileDataForCopy) {
-                    const dataToCopy = JSON.stringify(currentProfileDataForCopy, null, 2);
-                    navigator.clipboard.writeText(dataToCopy).then(() => {
-                        showToast("全データ(JSON)がクリップボードにコピーされました！", "success");
-                    }).catch(err => {
-                        showToast("クリップボードへのコピーに失敗しました。", "error");
-                        console.error('クリップボードへのコピー失敗: ', err);
-                    });
-                } else {
-                    showToast("コピーするデータがありません。", "error");
+            const chamberTemps = roastData.chamberTempLog ? roastData.chamberTempLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
+            const beanTemps = roastData.beanTempLog ? roastData.beanTempLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
+            const rorValues = roastData.rorLog ? roastData.rorLog.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n)) : [];
+            
+            const maxLenGraph = Math.max(chamberTemps.length, beanTemps.length);
+            
+            if (roastProfileChart) { roastProfileChart.destroy(); }
+            const ctx = document.getElementById('roastProfileChart').getContext('2d');
+
+            const annotations = {};
+            
+            if (roastData.turningPointTime && roastData.turningPointTemp) {
+                const tpTimeSec = timeToSeconds(roastData.turningPointTime);
+                const tpTemp = parseFloat(roastData.turningPointTemp);
+                if (tpTimeSec >= 0 && !isNaN(tpTemp)) { 
+                    const tpMinuteMark = tpTimeSec / 60;
+                    annotations[`tpPoint`] = {
+                        type: 'point', xValue: tpMinuteMark, yValue: tpTemp,
+                        backgroundColor: 'rgba(251, 191, 36, 0.9)', borderColor: 'rgba(217, 119, 6, 1)', 
+                        radius: 7, borderWidth: 2, pointStyle: 'triangle', rotation: 180,
+                        label: {
+                            enabled: true, content: `TP ${roastData.turningPointTime} @ ${tpTemp}°C`,
+                            position: 'start', font: { size: 10, weight: 'bold' }, yAdjust: -15, backgroundColor: 'rgba(255,255,255,0.7)'
+                        }
+                    };
                 }
-            });
-
-
-             window.onclick = (event) => {
-                if (event.target == confirmModal) confirmModal.style.display = "none";
-                if (event.target == profileModal) profileModal.style.display = "none"; 
             }
 
-            searchButton.addEventListener('click', () => {
+            if (roastData.firstCrackTime) {
+                const fcTimeSec = timeToSeconds(roastData.firstCrackTime);
+                if (fcTimeSec > 0) {
+                    annotations[`fcLine`] = {
+                        type: 'line', xMin: fcTimeSec / 60, xMax: fcTimeSec / 60,
+                        borderColor: 'rgba(234, 179, 8, 0.8)', borderWidth: 2, borderDash: [6, 6],
+                        label: {
+                            enabled: true, content: `1C ${roastData.firstCrackTime}`, position: 'start',
+                            font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: -10, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
+                        }
+                    };
+                }
+            }
+            if (roastData.secondCrackTime) {
+                const scTimeSec = timeToSeconds(roastData.secondCrackTime);
+                 if (scTimeSec > 0) {
+                    annotations[`scLine`] = {
+                        type: 'line', xMin: scTimeSec / 60, xMax: scTimeSec / 60,
+                        borderColor: 'rgba(249, 115, 22, 0.8)', borderWidth: 2, borderDash: [6, 6],
+                        label: {
+                            enabled: true, content: `2C ${roastData.secondCrackTime}`, position: 'start',
+                            font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: -10, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
+                        }
+                    };
+                }
+            }
+            if (roastData.totalRoastTime && roastData.endOfRoastTemp) {
+                const eorTimeSec = timeToSeconds(roastData.totalRoastTime);
+                const eorTemp = parseFloat(roastData.endOfRoastTemp);
+                if (eorTimeSec > 0 && !isNaN(eorTemp)) {
+                    annotations[`eorLine`] = { 
+                        type: 'line', xMin: eorTimeSec / 60, xMax: eorTimeSec / 60,
+                        borderColor: 'rgba(22, 163, 74, 0.8)', borderWidth: 2,
+                        label: {
+                            enabled: true, content: `EOR ${roastData.totalRoastTime} @ ${eorTemp}°C`, position: 'end',
+                            font: { size: 10, weight: 'bold' }, rotation: -90, yAdjust: 15, xAdjust: -5, backgroundColor: 'rgba(255,255,255,0.7)'
+                        }
+                    };
+                     annotations[`eorPoint`] = { 
+                        type: 'point', xValue: eorTimeSec / 60, yValue: eorTemp,
+                        backgroundColor: 'rgba(22, 163, 74, 0.9)', borderColor: 'rgba(21, 128, 61, 1)', 
+                        radius: 7, borderWidth: 2, pointStyle: 'star'
+                    };
+                }
+            }
+
+
+            if (maxLenGraph === 0 && rorValues.length === 0 && Object.keys(annotations).length === 0) {
+                profileMessage.textContent = "表示する温度・ROR・イベントデータがありません。";
+                ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height); 
+            } else {
+                const tempLabels = Array.from({length: maxLenGraph}, (_, i) => `${i}分`);
+                const datasets = [];
+                if (chamberTemps.length > 0) {
+                    datasets.push({
+                        label: '庫内温度 (°C)', data: chamberTemps, yAxisID: 'yTemp',
+                        borderColor: 'rgba(239, 68, 68, 1)', backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                        tension: 0.2, fill: false, pointRadius: 3, pointHoverRadius: 5,
+                    });
+                }
+                if (beanTemps.length > 0) {
+                    datasets.push({
+                        label: '豆温度 (°C)', data: beanTemps, yAxisID: 'yTemp',
+                        borderColor: 'rgba(59, 130, 246, 1)', backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        tension: 0.2, fill: false, pointRadius: 3, pointHoverRadius: 5,
+                    });
+                }
+                if (rorValues.length > 0) {
+                    const alignedRorData = [null, ...rorValues]; 
+                    datasets.push({
+                        label: '豆ROR (°C/分)', data: alignedRorData, yAxisID: 'yROR',
+                        borderColor: 'rgba(16, 185, 129, 1)', backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        tension: 0.2, fill: false, type: 'line',
+                        borderDash: [5, 5], pointRadius: 3, pointHoverRadius: 5,
+                    });
+                }
+                
+                roastProfileChart = new Chart(ctx, {
+                    type: 'line', 
+                    data: { labels: tempLabels, datasets: datasets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false, 
+                        interaction: { mode: 'index', intersect: false, },
+                        scales: {
+                            x: { title: { display: true, text: '焙煎時間 (経過分)', font: {size: 14} }, grid: {display: true} },
+                            yTemp: { 
+                                type: 'linear', display: true, position: 'left', 
+                                title: { display: true, text: '温度 (°C)', font: {size: 14} }, 
+                                beginAtZero: false,
+                                grid: { drawOnChartArea: true, color: 'rgba(200,200,200,0.3)'},
+                                ticks: { padding: 5 }
+                            },
+                            yROR: { 
+                                type: 'linear', display: rorValues.length > 0, position: 'right',
+                                title: { display: true, text: 'ROR (°C/分)', font: {size: 14} },
+                                beginAtZero: false, 
+                                grid: { drawOnChartArea: false }, 
+                                ticks: { padding: 5 },
+                                suggestedMin: 0, 
+                            }
+                        },
+                        plugins: { 
+                            legend: { position: 'bottom', labels: {padding: 20, font: {size: 12}} }, 
+                            title: { display: true, text: '焙煎温度プロファイル', font: {size: 18}, padding: {top:10, bottom:20} },
+                            tooltip: {
+                                mode: 'index', intersect: false,
+                                titleFont: {size: 14}, bodyFont: {size: 12},
+                                padding: 10, boxPadding: 4,
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) { label += ': '; }
+                                        if (context.parsed.y !== null) {
+                                            label += context.parsed.y.toFixed(1);
+                                            if (context.dataset.yAxisID === 'yTemp') label += '°C';
+                                            if (context.dataset.yAxisID === 'yROR') label += '°C/分';
+                                        }
+                                        return label;
+                                    }
+                                }
+                            },
+                            annotation: { 
+                                annotations: annotations
+                            }
+                        }
+                    }
+                });
+                profileMessage.textContent = "グラフが表示されました。";
+            }
+
+            profileDataTableBody.innerHTML = ''; 
+            const maxTableLen = Math.max(
+                (roastData.chamberTempLog || "").split(',').filter(Boolean).length,
+                (roastData.beanTempLog || "").split(',').filter(Boolean).length,
+                (roastData.rorLog || "").split(',').filter(Boolean).length + 1 
+            );
+
+            if (maxTableLen === 0) {
+                profileTableMessage.textContent = "表示するログデータがありません。";
+            } else {
+                for (let i = 0; i < maxTableLen; i++) {
+                    const row = profileDataTableBody.insertRow();
+                    const cellTime = row.insertCell();
+                    const cellChamber = row.insertCell();
+                    const cellBean = row.insertCell();
+                    const cellROR = row.insertCell();
+
+                    cellTime.textContent = `${i}分`;
+                    cellTime.classList.add('time-col');
+                    cellChamber.textContent = chamberTemps[i] !== undefined ? chamberTemps[i].toFixed(1) : '-';
+                    cellBean.textContent = beanTemps[i] !== undefined ? beanTemps[i].toFixed(1) : '-';
+                    cellROR.textContent = i > 0 && rorValues[i-1] !== undefined ? rorValues[i-1].toFixed(1) : '-';
+                }
+            }
+        }
+        
+        copyProfileJsonButton.addEventListener('click', () => {
+            if (currentProfileDataForCopy) {
+                const dataToCopy = JSON.stringify(currentProfileDataForCopy, null, 2);
+                navigator.clipboard.writeText(dataToCopy).then(() => {
+                    showToast("全データ(JSON)がクリップボードにコピーされました！", "success");
+                }).catch(err => {
+                    showToast("クリップボードへのコピーに失敗しました。", "error");
+                    console.error('クリップボードへのコピー失敗: ', err);
+                });
+            } else {
+                showToast("コピーするデータがありません。", "error");
+            }
+        });
+
+
+         window.onclick = (event) => {
+            if (event.target == confirmModal) confirmModal.style.display = "none";
+            if (event.target == profileModal) profileModal.style.display = "none"; 
+        }
+
+        searchButton.addEventListener('click', () => {
+            displayRoasts(searchInput.value);
+        });
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
                 displayRoasts(searchInput.value);
-            });
-            searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    displayRoasts(searchInput.value);
-                }
-            });
-            clearSearchButton.addEventListener('click', () => {
-                searchInput.value = '';
-                displayRoasts(); 
-            });
-
-
-            exportFilteredButton.addEventListener('click', () => {
-                let roastsToExport = getRoasts();
-                if (currentFilter) {
-                    roastsToExport = roastsToExport.filter(roast => roast.beanName.toLowerCase().includes(currentFilter));
-                }
-
-                if (roastsToExport.length === 0) {
-                    showToast("エクスポートする記録がありません（現在の表示結果）。", "info");
-                    return;
-                }
-                exportRoastsToCSV(roastsToExport, `coffee_roast_log_filtered_${new Date().toISOString().slice(0,10)}.csv`);
-                showToast("表示結果をCSV形式でエクスポートしました。", "success");
-            });
-
-
-            function exportRoastsToCSV(roastsArray, filename) { 
-                const headers = [
-                    "ID", "豆の名前", "焙煎日", "焙煎度", "産地", "投入温度(°C)",
-                    "TP時間", "TP温度(°C)", 
-                    "生豆重量(g)", "焙煎後重量(g)", "重量減少率(%)",
-                    "1ハゼ開始", "2ハゼ開始", "総焙煎時間", "煎り止め温度(°C)", 
-                    "DTR(%)",
-                    "庫内温度ログ", "豆温度ログ", "RORログ(豆温度 °C/分)",
-                    "気候(気温°C)", "気候(湿度%)", "メモ"
-                ];
-                const escapeCSV = (field) => {
-                    if (field === null || typeof field === 'undefined' || field === "") return ''; 
-                    const stringField = String(field);
-                    if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
-                        return `"${stringField.replace(/"/g, '""')}"`;
-                    }
-                    return stringField;
-                };
-                const csvRows = roastsArray.map(r => [
-                    escapeCSV(r.id), escapeCSV(r.beanName), escapeCSV(r.roastDate), escapeCSV(r.roastLevel), escapeCSV(r.origin),
-                    escapeCSV(r.chargingTemperature), 
-                    escapeCSV(r.turningPointTime), escapeCSV(r.turningPointTemp), 
-                    escapeCSV(r.greenBeanWeight), escapeCSV(r.roastedBeanWeight), escapeCSV(r.weightLossPercentage),
-                    escapeCSV(r.firstCrackTime), escapeCSV(r.secondCrackTime), escapeCSV(r.totalRoastTime),
-                    escapeCSV(r.endOfRoastTemp), 
-                    escapeCSV(r.dtr ? r.dtr + '%' : ''), 
-                    escapeCSV(r.chamberTempLog), escapeCSV(r.beanTempLog), 
-                    escapeCSV(r.rorLog), 
-                    escapeCSV(r.weatherTemp), escapeCSV(r.weatherHumidity), escapeCSV(r.notes)
-                ].join(','));
-                const csvString = [headers.join(','), ...csvRows].join('\n');
-                const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' }); 
-                const link = document.createElement('a');
-                const url = URL.createObjectURL(blob);
-                link.setAttribute('href', url);
-                link.setAttribute('download', filename);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
             }
-
-            exportAllButton.addEventListener('click', () => {
-                const roasts = getRoasts();
-                if (roasts.length === 0) {
-                    showToast("エクスポートする記録がありません。", "info");
-                    return;
-                }
-                exportRoastsToCSV(roasts, `coffee_roast_log_all_${new Date().toISOString().slice(0,10)}.csv`);
-                showToast("全データをCSV形式でエクスポートしました。", "success");
-            });
-
-            exportBackupButton.addEventListener('click', () => {
-                const roasts = getRoasts();
-                if (roasts.length === 0) {
-                    showToast("バックアップする記録がありません。", "info");
-                    return;
-                }
-                const jsonData = JSON.stringify(roasts, null, 2); 
-                const blob = new Blob([jsonData], { type: 'application/json;charset=utf-8;' });
-                const link = document.createElement('a');
-                const url = URL.createObjectURL(blob);
-                const today = new Date().toISOString().slice(0,10);
-                link.setAttribute('href', url);
-                link.setAttribute('download', `coffee_roast_backup_${today}.json`);
-                link.style.visibility = 'hidden';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                showToast("全データをバックアップしました。", "success");
-            });
-
-            importBackupButton.addEventListener('click', () => {
-                importBackupInput.click(); 
-            });
-
-            importBackupInput.addEventListener('change', (event) => {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        openConfirmModal(
-                            `「${file.name}」からデータを復元しますか？`, 
-                            'importJson', 
-                            null, 
-                            e.target.result
-                        );
-                    };
-                    reader.onerror = () => {
-                        showToast("ファイルの読み込みに失敗しました。", "error");
-                    };
-                    reader.readAsText(file);
-                }
-                importBackupInput.value = ''; 
-            });
-
-
-            fetchWeatherButton.addEventListener('click', async () => {
-                if (!navigator.geolocation) {
-                    weatherMessage.textContent = "お使いのブラウザは位置情報取得に対応していません。";
-                    showToast("位置情報取得に非対応です。", "error");
-                    return;
-                }
-                weatherMessage.textContent = "位置情報を取得中...";
-                fetchWeatherButton.disabled = true;
-                try {
-                    const position = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
-                    });
-                    const { latitude, longitude } = position.coords;
-                    weatherMessage.textContent = `位置情報取得成功 (${latitude.toFixed(2)}, ${longitude.toFixed(2)})。天候情報取得中...`;
-                    const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude.toFixed(4)}&longitude=${longitude.toFixed(4)}&current=temperature_2m,relative_humidity_2m&timezone=Asia%2FTokyo`;
-                    const response = await fetch(apiUrl);
-                    if (!response.ok) {
-                        throw new Error(`天候APIエラー: ${response.status} ${response.statusText}`);
-                    }
-                    const data = await response.json();
-                    if (data.current && data.current.time && data.current.temperature_2m !== undefined && data.current.relative_humidity_2m !== undefined) {
-                        const temp = data.current.temperature_2m;
-                        const humidity = data.current.relative_humidity_2m;
-                        const time = data.current.time;
-                        roastWeatherTempInput.value = temp.toFixed(1);
-                        roastWeatherHumidityInput.value = Math.round(humidity);
-                        weatherMessage.textContent = `現在の気候: ${temp.toFixed(1)}°C, ${Math.round(humidity)}% (取得日時: ${new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
-                        showToast("気候情報を取得しました。", "success");
-                    } else {
-                        console.error("Weather API response structure unexpected or missing data:", data);
-                        throw new Error("天候データ形式が不正か、必要なデータ(気温/湿度/時間)が含まれていません。");
-                    }
-                } catch (error) {
-                    console.error("気候情報取得エラー:", error);
-                    weatherMessage.textContent = `気候情報取得失敗: ${error.message}`;
-                     showToast(`気候情報取得失敗: ${error.message}`, "error");
-                     roastWeatherTempInput.value = ''; 
-                     roastWeatherHumidityInput.value = '';
-                } finally {
-                    fetchWeatherButton.disabled = false;
-                }
-            });
-
+        });
+        clearSearchButton.addEventListener('click', () => {
+            searchInput.value = '';
             displayRoasts(); 
         });
+
+
+        exportFilteredButton.addEventListener('click', () => {
+            let roastsToExport = [...localRoastsCache]; 
+            if (currentFilter) {
+                roastsToExport = roastsToExport.filter(roast => roast.beanName.toLowerCase().includes(currentFilter));
+            }
+
+            if (roastsToExport.length === 0) {
+                showToast("エクスポートする記録がありません（現在の表示結果）。", "info");
+                return;
+            }
+            exportRoastsToCSV(roastsToExport, `coffee_roast_log_filtered_${new Date().toISOString().slice(0,10)}.csv`);
+            showToast("表示結果をCSV形式でエクスポートしました。", "success");
+        });
+
+
+        function exportRoastsToCSV(roastsArray, filename) { 
+            const headers = [
+                "ID", "豆の名前", "焙煎日", "焙煎度", "産地", "投入温度(°C)",
+                "TP時間", "TP温度(°C)", 
+                "生豆重量(g)", "焙煎後重量(g)", "重量減少率(%)",
+                "1ハゼ開始", "2ハゼ開始", "総焙煎時間", "煎り止め温度(°C)", 
+                "DTR(%)",
+                "庫内温度ログ", "豆温度ログ", "RORログ(豆温度 °C/分)",
+                "気候(気温°C)", "気候(湿度%)", "メモ"
+            ];
+            const escapeCSV = (field) => {
+                if (field === null || typeof field === 'undefined' || field === "") return ''; 
+                const stringField = String(field);
+                if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+                    return `"${stringField.replace(/"/g, '""')}"`;
+                }
+                return stringField;
+            };
+            const csvRows = roastsArray.map(r => [
+                escapeCSV(r.id), escapeCSV(r.beanName), escapeCSV(r.roastDate), escapeCSV(r.roastLevel), escapeCSV(r.origin),
+                escapeCSV(r.chargingTemperature), 
+                escapeCSV(r.turningPointTime), escapeCSV(r.turningPointTemp), 
+                escapeCSV(r.greenBeanWeight), escapeCSV(r.roastedBeanWeight), escapeCSV(r.weightLossPercentage),
+                escapeCSV(r.firstCrackTime), escapeCSV(r.secondCrackTime), escapeCSV(r.totalRoastTime),
+                escapeCSV(r.endOfRoastTemp), 
+                escapeCSV(r.dtr ? r.dtr + '%' : ''), 
+                escapeCSV(r.chamberTempLog), escapeCSV(r.beanTempLog), 
+                escapeCSV(r.rorLog), 
+                escapeCSV(r.weatherTemp), escapeCSV(r.weatherHumidity), escapeCSV(r.notes)
+            ].join(','));
+            const csvString = [headers.join(','), ...csvRows].join('\n');
+            const blob = new Blob([`\uFEFF${csvString}`], { type: 'text/csv;charset=utf-8;' }); 
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        exportAllButton.addEventListener('click', () => {
+            const roasts = [...localRoastsCache]; 
+            if (roasts.length === 0) {
+                showToast("エクスポートする記録がありません。", "info");
+                return;
+            }
+            exportRoastsToCSV(roasts, `coffee_roast_log_all_${new Date().toISOString().slice(0,10)}.csv`);
+            showToast("全データをCSV形式でエクスポートしました。", "success");
+        });
+
+        exportBackupButton.addEventListener('click', () => {
+            const roasts = [...localRoastsCache]; 
+            if (roasts.length === 0) {
+                showToast("バックアップする記録がありません。", "info");
+                return;
+            }
+            const exportableRoasts = roasts.map(r => {
+                const exportRoast = {...r};
+                if (exportRoast.createdAt && exportRoast.createdAt.toDate) {
+                    exportRoast.createdAt = exportRoast.createdAt.toDate().toISOString();
+                }
+                if (exportRoast.updatedAt && exportRoast.updatedAt.toDate) {
+                    exportRoast.updatedAt = exportRoast.updatedAt.toDate().toISOString();
+                }
+                return exportRoast;
+            });
+
+            const jsonData = JSON.stringify(exportableRoasts, null, 2); 
+            const blob = new Blob([jsonData], { type: 'application/json;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const today = new Date().toISOString().slice(0,10);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `coffee_roast_backup_${today}.json`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            showToast("全データをバックアップしました。", "success");
+        });
+
+        importBackupButton.addEventListener('click', () => {
+            importBackupInput.click(); 
+        });
+
+        importBackupInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    openConfirmModal(
+                        `「${file.name}」からデータを復元しますか？`, 
+                        'importJson', 
+                        null, 
+                        e.target.result
+                    );
+                };
+                reader.onerror = () => {
+                    showToast("ファイルの読み込みに失敗しました。", "error");
+                };
+                reader.readAsText(file);
+            }
+            importBackupInput.value = ''; 
+        });
+
+
+        fetchWeatherButton.addEventListener('click', async () => {
+            if (!navigator.geolocation) {
+                weatherMessage.textContent = "お使いのブラウザは位置情報取得に対応していません。";
+                showToast("位置情報取得に非対応です。", "error");
+                return;
+            }
+            weatherMessage.textContent = "位置情報を取得中...";
+            fetchWeatherButton.disabled = true;
+            try {
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+                });
+                const { latitude, longitude } = position.coords;
+                weatherMessage.textContent = `位置情報取得成功 (${latitude.toFixed(2)}, ${longitude.toFixed(2)})。天候情報取得中...`;
+                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude.toFixed(4)}&longitude=${longitude.toFixed(4)}&current=temperature_2m,relative_humidity_2m&timezone=Asia%2FTokyo`;
+                const response = await fetch(apiUrl);
+                if (!response.ok) {
+                    throw new Error(`天候APIエラー: ${response.status} ${response.statusText}`);
+                }
+                const data = await response.json();
+                if (data.current && data.current.time && data.current.temperature_2m !== undefined && data.current.relative_humidity_2m !== undefined) {
+                    const temp = data.current.temperature_2m;
+                    const humidity = data.current.relative_humidity_2m;
+                    const time = data.current.time;
+                    roastWeatherTempInput.value = temp.toFixed(1);
+                    roastWeatherHumidityInput.value = Math.round(humidity);
+                    weatherMessage.textContent = `現在の気候: ${temp.toFixed(1)}°C, ${Math.round(humidity)}% (取得日時: ${new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`;
+                    showToast("気候情報を取得しました。", "success");
+                } else {
+                    console.error("Weather API response structure unexpected or missing data:", data);
+                    throw new Error("天候データ形式が不正か、必要なデータ(気温/湿度/時間)が含まれていません。");
+                }
+            } catch (error) {
+                console.error("気候情報取得エラー:", error);
+                weatherMessage.textContent = `気候情報取得失敗: ${error.message}`;
+                 showToast(`気候情報取得失敗: ${error.message}`, "error");
+                 roastWeatherTempInput.value = ''; 
+                 roastWeatherHumidityInput.value = '';
+            } finally {
+                fetchWeatherButton.disabled = false;
+            }
+        }); // Closing parenthesis for fetchWeatherButton event listener
+
+        displayRoasts(); 
+    }); // Closing parenthesis and curly brace for DOMContentLoaded event listener
     </script>
 </body>
 </html>
